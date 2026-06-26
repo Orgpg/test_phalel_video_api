@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../free_videos/free_videos_tab.dart';
 import '../premium_videos/premium_videos_tab.dart';
@@ -39,6 +40,11 @@ class _HomeScreenState extends State<HomeScreen> {
               onPressed: () => context.read<VideoProvider>().loadVideos(),
             ),
           ],
+        ),
+        floatingActionButton: FloatingActionButton.extended(
+          onPressed: () => context.push('/upload'),
+          label: const Text('Upload Video'),
+          icon: const Icon(Icons.upload),
         ),
         body: Consumer<VideoProvider>(
           builder: (context, provider, child) {
