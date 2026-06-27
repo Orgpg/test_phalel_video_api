@@ -10,6 +10,7 @@ class VideoProvider with ChangeNotifier {
   VideoProvider(this._repository);
 
   List<VideoModel> _allVideos = [];
+  List<String> _apiFolders = [];
   VideoState _state = VideoState.initial;
   String _errorMessage = '';
 
@@ -19,13 +20,58 @@ class VideoProvider with ChangeNotifier {
   VideoState get state => _state;
   String get errorMessage => _errorMessage;
 
+  // Get all folders from API folders list
+  List<String> get folders {
+    final folderSet = <String>{};
+    
+    // 1. Add folders from API response
+    for (var f in _apiFolders) {
+      if (f.trim().isNotEmpty) {
+        folderSet.add(f.trim());
+      }
+    }
+
+    // 2. Add 'General' if it's not there and we have videos without folders
+    if (!folderSet.any((f) => f.toLowerCase() == 'general')) {
+      if (_allVideos.any((v) => v.folder == null || v.folder!.trim().isEmpty || v.folder!.trim().toLowerCase() == 'general')) {
+        folderSet.add('General');
+      }
+    }
+
+    // 3. Add folders from allVideos that might not be in _apiFolders (optional, but safer)
+    for (var v in _allVideos) {
+      final vFolder = (v.folder == null || v.folder!.trim().isEmpty) ? 'General' : v.folder!.trim();
+      folderSet.add(vFolder);
+    }
+
+    final list = folderSet.toList();
+    list.sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+    return list;
+  }
+
+  // Get videos for a specific folder
+  List<VideoModel> videosByFolder(String folderName) {
+    return _allVideos.where((v) {
+      final vFolder = (v.folder == null || v.folder!.trim().isEmpty) ? 'General' : v.folder!.trim();
+      return vFolder.toLowerCase() == folderName.trim().toLowerCase();
+    }).toList();
+  }
+
   Future<void> loadVideos() async {
     _state = VideoState.loading;
     _errorMessage = '';
     notifyListeners();
 
     try {
-      _allVideos = await _repository.fetchVideos();
+      // Load both videos and folders in parallel
+      final results = await Future.wait([
+        _repository.fetchVideos(),
+        _repository.fetchFolders(),
+      ]);
+
+      _allVideos = results[0] as List<VideoModel>;
+      _apiFolders = results[1] as List<String>;
+
       _state = VideoState.loaded;
     } catch (e) {
       _state = VideoState.error;

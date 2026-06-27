@@ -17,6 +17,7 @@ class VideoCard extends StatelessWidget {
   });
 
   Future<Uint8List?> _fetchThumbnail(String url) async {
+    if (url.isEmpty) return null;
     try {
       final token = dotenv.get('API_TOKEN');
       final response = await Dio().get(
@@ -108,12 +109,11 @@ class VideoCard extends StatelessWidget {
                           label: Text(video.category!),
                           visualDensity: VisualDensity.compact,
                         ),
-                      if (video.fileSize != null && video.fileSize!.isNotEmpty)
-                        Chip(
-                          label: Text(_formatFileSize(video.fileSize!)),
-                          visualDensity: VisualDensity.compact,
-                          avatar: const Icon(Icons.sd_storage, size: 16),
-                        ),
+                      Chip(
+                        label: Text(_formatFileSize(video.fileSize)),
+                        visualDensity: VisualDensity.compact,
+                        avatar: const Icon(Icons.sd_storage, size: 16),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 8),
@@ -130,15 +130,10 @@ class VideoCard extends StatelessWidget {
     );
   }
 
-  String _formatFileSize(String size) {
-    try {
-      final bytes = int.tryParse(size);
-      if (bytes == null || bytes <= 0) return size;
-      const suffixes = ["B", "KB", "MB", "GB", "TB"];
-      var i = (math.log(bytes.toDouble()) / math.log(1024)).floor();
-      return "${(bytes / math.pow(1024, i)).toStringAsFixed(1)} ${suffixes[i]}";
-    } catch (e) {
-      return size;
-    }
+  String _formatFileSize(int bytes) {
+    if (bytes <= 0) return "0 B";
+    const suffixes = ["B", "KB", "MB", "GB", "TB"];
+    var i = (math.log(bytes.toDouble()) / math.log(1024)).floor();
+    return "${(bytes / math.pow(1024, i)).toStringAsFixed(1)} ${suffixes[i]}";
   }
 }

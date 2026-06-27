@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../free_videos/free_videos_tab.dart';
 import '../premium_videos/premium_videos_tab.dart';
+import 'widgets/folder_list.dart';
 import 'video_provider.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -24,12 +25,14 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 2,
+      length: 3,
       child: Scaffold(
         appBar: AppBar(
           title: const Text('PhaLel Video Test'),
           bottom: const TabBar(
+            isScrollable: true,
             tabs: [
+              Tab(text: 'Folders', icon: Icon(Icons.folder_copy)),
               Tab(text: 'Free Videos', icon: Icon(Icons.lock_open)),
               Tab(text: 'Premium Videos', icon: Icon(Icons.star)),
             ],
@@ -77,10 +80,11 @@ class _HomeScreenState extends State<HomeScreen> {
               );
             }
 
-            return const TabBarView(
+            return TabBarView(
               children: [
-                FreeVideosTab(),
-                PremiumVideosTab(),
+                const FolderList(),
+                const FreeVideosTab(),
+                const PremiumVideosTab(),
               ],
             );
           },

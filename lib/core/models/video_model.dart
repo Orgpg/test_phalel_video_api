@@ -1,48 +1,73 @@
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+
 class VideoModel {
-  final String id; // Changed from int to String
+  final String id;
+  final String fileName;
   final String displayName;
   final String? description;
+  final String? folder;
   final String? category;
-  final String? tags;
+  final List<String> tags;
   final String accessType;
-  final int accessTypeId;
-  final String thumbnailUrl;
-  final String videoUrl;
-  final String? fileSize;
+  final int fileSize;
+  final String fileType;
+  final String r2ObjectKey;
+  final String? thumbnailObjectKey;
   final DateTime createdAt;
 
   VideoModel({
     required this.id,
+    required this.fileName,
     required this.displayName,
     this.description,
+    this.folder,
     this.category,
-    this.tags,
+    required this.tags,
     required this.accessType,
-    required this.accessTypeId,
-    required this.thumbnailUrl,
-    required this.videoUrl,
-    this.fileSize,
+    required this.fileSize,
+    required this.fileType,
+    required this.r2ObjectKey,
+    this.thumbnailObjectKey,
     required this.createdAt,
   });
 
   factory VideoModel.fromJson(Map<String, dynamic> json) {
     return VideoModel(
       id: json['id']?.toString() ?? '',
-      displayName: json['displayName'] ?? json['title'] ?? 'No Name',
-      description: json['description'] ?? '',
-      category: json['category'] ?? '',
-      tags: (json['tags'] is List) ? (json['tags'] as List).join(', ') : json['tags']?.toString() ?? '',
-      accessType: json['accessType'] ?? json['label'] ?? 'FREE',
-      accessTypeId: json['accessTypeId'] ?? (json['label'] == 'PREMIUM' ? 2 : 1),
-      thumbnailUrl: json['thumbnailUrl'] ?? '',
-      videoUrl: json['videoUrl'] ?? '',
-      fileSize: json['fileSize']?.toString() ?? json['fileSizeMb']?.toString() ?? '',
+      fileName: json['fileName'] ?? '',
+      displayName: json['displayName'] ?? 'No Name',
+      description: json['description'],
+      folder: (json['folder'] == null || json['folder'].toString().trim().isEmpty) 
+          ? 'General' 
+          : json['folder'].toString().trim(),
+      category: json['category'],
+      tags: (json['tags'] is List) 
+          ? List<String>.from(json['tags']) 
+          : (json['tags']?.toString().split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList() ?? []),
+      accessType: json['accessType']?.toString().toUpperCase() ?? 'FREE',
+      fileSize: json['fileSize'] is int ? json['fileSize'] : int.tryParse(json['fileSize']?.toString() ?? '0') ?? 0,
+      fileType: json['fileType'] ?? '',
+      r2ObjectKey: json['r2ObjectKey'] ?? '',
+      thumbnailObjectKey: json['thumbnailObjectKey'],
       createdAt: json['createdAt'] != null 
           ? DateTime.tryParse(json['createdAt'].toString()) ?? DateTime.now()
           : DateTime.now(),
     );
   }
 
-  bool get isFree => accessType.toUpperCase() == "FREE" || accessTypeId == 1;
-  bool get isPremium => accessType.toUpperCase() == "PREMIUM" || accessTypeId == 2;
+  bool get isFree => accessType == "FREE";
+  bool get isPremium => accessType == "PREMIUM";
+
+  String get normalizedFolder => (folder == null || folder!.trim().isEmpty) ? 'General' : folder!.trim();
+
+  String get videoUrl {
+    final baseUrl = dotenv.get('BASE_URL', fallback: '');
+    return "$baseUrl/api/mobile/uploads/proxy?key=$r2ObjectKey";
+  }
+
+  String get thumbnailUrl {
+    if (thumbnailObjectKey == null || thumbnailObjectKey!.isEmpty) return '';
+    final baseUrl = dotenv.get('BASE_URL', fallback: '');
+    return "$baseUrl/api/mobile/uploads/proxy?key=$thumbnailObjectKey";
+  }
 }

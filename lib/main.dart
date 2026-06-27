@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import 'core/models/video_model.dart';
 import 'core/network/dio_client.dart';
 import 'core/repositories/video_repository.dart';
+import 'features/home/folder_videos_screen.dart';
 import 'features/home/home_screen.dart';
 import 'features/home/video_provider.dart';
 import 'features/upload/upload_video_screen.dart';
@@ -53,6 +54,13 @@ final GoRouter _router = GoRouter(
     GoRoute(
       path: '/upload',
       builder: (context, state) => const UploadVideoScreen(),
+    ),
+    GoRoute(
+      path: '/folder-videos',
+      builder: (context, state) {
+        final folderName = state.extra as String;
+        return FolderVideosScreen(folderName: folderName);
+      },
     ),
   ],
 );

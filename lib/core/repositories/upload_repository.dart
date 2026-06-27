@@ -7,8 +7,17 @@ class UploadRepository {
 
   UploadRepository(this._dioClient);
 
+  Future<List<String>> fetchFolders() async {
+    final response = await _dioClient.dio.get('/api/folders');
+    if (response.data is Map && response.data['folders'] is List) {
+      return List<String>.from(response.data['folders']);
+    }
+    return ['General'];
+  }
+
   Future<Map<String, dynamic>> getPresignedUrl({
     required String assetType,
+    required String folder,
     required String fileName,
     required String fileType,
     required int fileSize,
@@ -17,6 +26,7 @@ class UploadRepository {
       '/api/mobile/uploads/presigned-url',
       data: {
         'assetType': assetType,
+        'folder': folder,
         'fileName': fileName,
         'fileType': fileType,
         'fileSize': fileSize,
@@ -31,13 +41,13 @@ class UploadRepository {
     required String contentType,
     Function(int, int)? onProgress,
   }) async {
+    // Use a fresh Dio instance for PUT to avoid global interceptors if they interfere
     await Dio().put(
       url,
-      data: Stream.fromIterable([bytes]),
+      data: bytes,
       options: Options(
         headers: {
           'Content-Type': contentType,
-          'Content-Length': bytes.length,
         },
       ),
       onSendProgress: onProgress,
@@ -46,36 +56,44 @@ class UploadRepository {
 
   Future<Map<String, dynamic>> submitMetadata({
     required String fileName,
+    required String folder,
     required int fileSize,
     required String fileType,
     required String r2ObjectKey,
-    required String thumbnailFileName,
-    required int thumbnailFileSize,
-    required String thumbnailFileType,
-    required String thumbnailObjectKey,
+    String? thumbnailFileName,
+    int? thumbnailFileSize,
+    String? thumbnailFileType,
+    String? thumbnailObjectKey,
     required String displayName,
     required String category,
     required String description,
     required List<String> tags,
     required String accessType,
   }) async {
+    final Map<String, dynamic> data = {
+      'fileName': fileName,
+      'folder': folder,
+      'fileSize': fileSize,
+      'fileType': fileType,
+      'r2ObjectKey': r2ObjectKey,
+      'accessType': accessType.toUpperCase(),
+      'displayName': displayName,
+      'description': description,
+      'category': category,
+      'tags': tags,
+    };
+
+    // Add thumbnail fields only if they exist
+    if (thumbnailObjectKey != null && thumbnailObjectKey.isNotEmpty) {
+      data['thumbnailFileName'] = thumbnailFileName;
+      data['thumbnailFileSize'] = thumbnailFileSize;
+      data['thumbnailFileType'] = thumbnailFileType;
+      data['thumbnailObjectKey'] = thumbnailObjectKey;
+    }
+
     final response = await _dioClient.dio.post(
       '/api/mobile/uploads',
-      data: {
-        'fileName': fileName,
-        'fileSize': fileSize,
-        'fileType': fileType,
-        'r2ObjectKey': r2ObjectKey,
-        'thumbnailFileName': thumbnailFileName,
-        'thumbnailFileSize': thumbnailFileSize,
-        'thumbnailFileType': thumbnailFileType,
-        'thumbnailObjectKey': thumbnailObjectKey,
-        'displayName': displayName,
-        'category': category,
-        'description': description,
-        'tags': tags,
-        'accessType': accessType,
-      },
+      data: data,
     );
     return response.data;
   }
