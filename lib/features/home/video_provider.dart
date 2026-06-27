@@ -57,6 +57,18 @@ class VideoProvider with ChangeNotifier {
     }).toList();
   }
 
+  List<VideoModel> searchVideos(String query) {
+    if (query.isEmpty) return _allVideos;
+    final lowercaseQuery = query.toLowerCase();
+    return _allVideos.where((v) {
+      return v.displayName.toLowerCase().contains(lowercaseQuery) ||
+          v.fileName.toLowerCase().contains(lowercaseQuery) ||
+          (v.author?.toLowerCase().contains(lowercaseQuery) ?? false) ||
+          (v.category?.toLowerCase().contains(lowercaseQuery) ?? false) ||
+          v.tags.any((tag) => tag.toLowerCase().contains(lowercaseQuery));
+    }).toList();
+  }
+
   Future<void> loadVideos() async {
     _state = VideoState.loading;
     _errorMessage = '';

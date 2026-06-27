@@ -4,6 +4,7 @@ class VideoModel {
   final String id;
   final String fileName;
   final String displayName;
+  final String? author;
   final String? description;
   final String? folder;
   final String? category;
@@ -14,11 +15,14 @@ class VideoModel {
   final String r2ObjectKey;
   final String? thumbnailObjectKey;
   final DateTime createdAt;
+  final String? videoUrlOverride;
+  final String? thumbnailUrlOverride;
 
   VideoModel({
     required this.id,
     required this.fileName,
     required this.displayName,
+    this.author,
     this.description,
     this.folder,
     this.category,
@@ -29,13 +33,16 @@ class VideoModel {
     required this.r2ObjectKey,
     this.thumbnailObjectKey,
     required this.createdAt,
+    this.videoUrlOverride,
+    this.thumbnailUrlOverride,
   });
 
   factory VideoModel.fromJson(Map<String, dynamic> json) {
     return VideoModel(
       id: json['id']?.toString() ?? '',
       fileName: json['fileName'] ?? '',
-      displayName: json['displayName'] ?? 'No Name',
+      displayName: json['displayName'] ?? json['fileName'] ?? 'No Name',
+      author: json['author'],
       description: json['description'],
       folder: (json['folder'] == null || json['folder'].toString().trim().isEmpty) 
           ? 'General' 
@@ -52,6 +59,8 @@ class VideoModel {
       createdAt: json['createdAt'] != null 
           ? DateTime.tryParse(json['createdAt'].toString()) ?? DateTime.now()
           : DateTime.now(),
+      videoUrlOverride: json['videoUrl'] ?? json['url'] ?? json['video_url'],
+      thumbnailUrlOverride: json['thumbnailUrl'] ?? json['thumbnail'],
     );
   }
 
@@ -61,13 +70,18 @@ class VideoModel {
   String get normalizedFolder => (folder == null || folder!.trim().isEmpty) ? 'General' : folder!.trim();
 
   String get videoUrl {
-    final baseUrl = dotenv.get('BASE_URL', fallback: '');
-    return "$baseUrl/api/mobile/uploads/proxy?key=$r2ObjectKey";
+    if (videoUrlOverride != null && videoUrlOverride!.isNotEmpty) return videoUrlOverride!;
+    final baseUrl = dotenv.get('BASE_URL', fallback: '').replaceAll(RegExp(r'/$'), '');
+    if (r2ObjectKey.isEmpty) return '';
+    final encodedKey = Uri.encodeComponent(r2ObjectKey);
+    return "$baseUrl/api/mobile/uploads/proxy?key=$encodedKey";
   }
 
   String get thumbnailUrl {
+    if (thumbnailUrlOverride != null && thumbnailUrlOverride!.isNotEmpty) return thumbnailUrlOverride!;
     if (thumbnailObjectKey == null || thumbnailObjectKey!.isEmpty) return '';
-    final baseUrl = dotenv.get('BASE_URL', fallback: '');
-    return "$baseUrl/api/mobile/uploads/proxy?key=$thumbnailObjectKey";
+    final baseUrl = dotenv.get('BASE_URL', fallback: '').replaceAll(RegExp(r'/$'), '');
+    final encodedKey = Uri.encodeComponent(thumbnailObjectKey!);
+    return "$baseUrl/api/mobile/uploads/proxy?key=$encodedKey";
   }
 }

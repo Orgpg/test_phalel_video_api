@@ -28,14 +28,28 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
 
   Future<void> _initializePlayer() async {
     final token = dotenv.get('API_TOKEN');
+    final videoUrl = widget.video.videoUrl;
+    
+    debugPrint('Initializing video: $videoUrl');
     
     try {
+      if (videoUrl.isEmpty) {
+        throw Exception('Video URL is empty');
+      }
+
+      final baseUrl = dotenv.get('BASE_URL', fallback: '');
+      final isInternalUrl = videoUrl.startsWith(baseUrl);
+
       _videoPlayerController = VideoPlayerController.networkUrl(
-        Uri.parse(widget.video.videoUrl),
-        httpHeaders: {'Authorization': 'Bearer $token'},
+        Uri.parse(videoUrl),
+        httpHeaders: isInternalUrl ? {
+          'Authorization': 'Bearer $token',
+        } : {},
       );
 
       await _videoPlayerController.initialize();
+      
+      if (!mounted) return;
 
       _chewieController = ChewieController(
         videoPlayerController: _videoPlayerController,
@@ -69,10 +83,12 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
       });
     } catch (e) {
       debugPrint('Video Player Error: $e');
-      setState(() {
-        _isLoading = false;
-        _errorMessage = e.toString();
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _errorMessage = 'Playback Error: $e\n\nURL: $videoUrl';
+        });
+      }
     }
   }
 
@@ -93,46 +109,126 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
         elevation: 0,
         foregroundColor: Colors.white,
       ),
-      body: Center(
-        child: _isLoading
-            ? const Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  CircularProgressIndicator(),
-                  SizedBox(height: 20),
-                  Text('Loading Video...', style: TextStyle(color: Colors.white)),
-                ],
-              )
-            : _errorMessage != null
-                ? Padding(
-                    padding: const EdgeInsets.all(20.0),
-                    child: Column(
+      body: Column(
+        children: [
+          AspectRatio(
+            aspectRatio: 16 / 9,
+            child: Center(
+              child: _isLoading
+                  ? const Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Icon(Icons.error_outline, color: Colors.red, size: 60),
-                        const SizedBox(height: 16),
-                        Text(
-                          'Failed to load video: $_errorMessage',
-                          style: const TextStyle(color: Colors.white),
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 20),
-                        ElevatedButton(
-                          onPressed: () {
-                            setState(() {
-                              _isLoading = true;
-                              _errorMessage = null;
-                            });
-                            _initializePlayer();
-                          },
-                          child: const Text('Retry'),
+                        CircularProgressIndicator(),
+                        SizedBox(height: 20),
+                        Text('Loading Video...', style: TextStyle(color: Colors.white)),
+                      ],
+                    )
+                  : _errorMessage != null
+                      ? Padding(
+                          padding: const EdgeInsets.all(20.0),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(Icons.error_outline, color: Colors.red, size: 60),
+                              const SizedBox(height: 16),
+                              Text(
+                                'Failed to load video: $_errorMessage',
+                                style: const TextStyle(color: Colors.white),
+                                textAlign: TextAlign.center,
+                              ),
+                              const SizedBox(height: 20),
+                              ElevatedButton(
+                                onPressed: () {
+                                  setState(() {
+                                    _isLoading = true;
+                                    _errorMessage = null;
+                                  });
+                                  _initializePlayer();
+                                },
+                                child: const Text('Retry'),
+                              )
+                            ],
+                          ),
                         )
+                      : _chewieController != null
+                          ? Chewie(controller: _chewieController!)
+                          : const Text('Initialization Failed', style: TextStyle(color: Colors.white)),
+            ),
+          ),
+          Expanded(
+            child: Container(
+              color: Theme.of(context).scaffoldBackgroundColor,
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      widget.video.displayName,
+                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 4),
+                    if (widget.video.author != null)
+                      Text(
+                        'By ${widget.video.author}',
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                              color: Colors.deepPurple,
+                              fontStyle: FontStyle.italic,
+                            ),
+                      ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        _buildInfoChip(context, widget.video.accessType, widget.video.isPremium ? Colors.amber : Colors.green),
+                        const SizedBox(width: 8),
+                        _buildInfoChip(context, widget.video.category ?? 'Uncategorized', Colors.blue),
+                        const SizedBox(width: 8),
+                        _buildInfoChip(context, widget.video.normalizedFolder, Colors.orange),
                       ],
                     ),
-                  )
-                : _chewieController != null
-                    ? Chewie(controller: _chewieController!)
-                    : const Text('Initialization Failed', style: TextStyle(color: Colors.white)),
+                    const SizedBox(height: 16),
+                    const Divider(),
+                    const Text(
+                      'Description',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      widget.video.description ?? 'No description provided.',
+                      style: Theme.of(context).textTheme.bodyLarge,
+                    ),
+                    const SizedBox(height: 24),
+                    const Text(
+                      'Tags',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      children: widget.video.tags.map((tag) => Chip(label: Text(tag))).toList(),
+                    ),
+                    const SizedBox(height: 40),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfoChip(BuildContext context, String label, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 12),
       ),
     );
   }

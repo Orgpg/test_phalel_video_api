@@ -79,20 +79,33 @@ class VideoCard extends StatelessWidget {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Expanded(
-                        child: Text(
-                          video.displayName,
-                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                                fontWeight: FontWeight.bold,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              video.displayName,
+                              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            if (video.author != null && video.author!.isNotEmpty)
+                              Text(
+                                'by ${video.author}',
+                                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                      color: Colors.grey[600],
+                                      fontStyle: FontStyle.italic,
+                                    ),
                               ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                          ],
                         ),
                       ),
                       const Icon(Icons.play_circle_outline, size: 30, color: Colors.deepPurple),
                     ],
                   ),
                   if (video.description != null && video.description!.isNotEmpty) ...[
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 8),
                     Text(
                       video.description!,
                       style: Theme.of(context).textTheme.bodyMedium,
@@ -100,15 +113,20 @@ class VideoCard extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                     ),
                   ],
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 12),
                   Wrap(
                     spacing: 8,
+                    runSpacing: 4,
                     children: [
                       if (video.category != null && video.category!.isNotEmpty)
-                        Chip(
-                          label: Text(video.category!),
-                          visualDensity: VisualDensity.compact,
-                        ),
+                        _buildBadge(context, video.category!, Colors.blue),
+                      _buildBadge(context, video.normalizedFolder, Colors.orange),
+                      _buildBadge(
+                        context, 
+                        video.accessType, 
+                        video.isPremium ? Colors.amber : Colors.green,
+                        isPremium: video.isPremium,
+                      ),
                       Chip(
                         label: Text(_formatFileSize(video.fileSize)),
                         visualDensity: VisualDensity.compact,
@@ -130,10 +148,48 @@ class VideoCard extends StatelessWidget {
     );
   }
 
+  Widget _buildBadge(BuildContext context, String text, Color color, {bool isPremium = false}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: color.withOpacity(0.5)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (isPremium) ...[
+            const Icon(Icons.star, size: 12, color: Colors.amber),
+            const SizedBox(width: 4),
+          ],
+          Text(
+            text,
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.bold,
+              color: color.darker(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+extension ColorExtension on Color {
+  Color darker() {
+    return Color.fromARGB(
+      alpha,
+      (red * 0.7).round(),
+      (green * 0.7).round(),
+      (blue * 0.7).round(),
+    );
+  }
+}
   String _formatFileSize(int bytes) {
     if (bytes <= 0) return "0 B";
     const suffixes = ["B", "KB", "MB", "GB", "TB"];
     var i = (math.log(bytes.toDouble()) / math.log(1024)).floor();
     return "${(bytes / math.pow(1024, i)).toStringAsFixed(1)} ${suffixes[i]}";
   }
-}

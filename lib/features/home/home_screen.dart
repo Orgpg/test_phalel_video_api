@@ -4,6 +4,8 @@ import 'package:provider/provider.dart';
 import '../free_videos/free_videos_tab.dart';
 import '../premium_videos/premium_videos_tab.dart';
 import 'widgets/folder_list.dart';
+import 'widgets/video_list.dart';
+import '../../core/models/video_model.dart';
 import 'video_provider.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -14,6 +16,9 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  bool _isSearching = false;
+  final TextEditingController _searchController = TextEditingController();
+
   @override
   void initState() {
     super.initState();
@@ -23,12 +28,32 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return DefaultTabController(
       length: 3,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('PhaLel Video Test'),
+          title: _isSearching
+              ? TextField(
+                  controller: _searchController,
+                  autofocus: true,
+                  decoration: const InputDecoration(
+                    hintText: 'Search title, author, category...',
+                    border: InputBorder.none,
+                    hintStyle: TextStyle(color: Colors.white70),
+                  ),
+                  style: const TextStyle(color: Colors.white),
+                  onChanged: (value) {
+                    setState(() {});
+                  },
+                )
+              : const Text('PhaLel Video Test'),
           bottom: const TabBar(
             isScrollable: true,
             tabs: [
@@ -38,6 +63,17 @@ class _HomeScreenState extends State<HomeScreen> {
             ],
           ),
           actions: [
+            IconButton(
+              icon: Icon(_isSearching ? Icons.close : Icons.search),
+              onPressed: () {
+                setState(() {
+                  _isSearching = !_isSearching;
+                  if (!_isSearching) {
+                    _searchController.clear();
+                  }
+                });
+              },
+            ),
             IconButton(
               icon: const Icon(Icons.refresh),
               onPressed: () => context.read<VideoProvider>().loadVideos(),
@@ -56,6 +92,7 @@ class _HomeScreenState extends State<HomeScreen> {
             }
 
             if (provider.state == VideoState.error) {
+              // ... existing error UI ...
               return Center(
                 child: Padding(
                   padding: const EdgeInsets.all(16.0),
@@ -80,16 +117,35 @@ class _HomeScreenState extends State<HomeScreen> {
               );
             }
 
+            final query = _searchController.text;
+            
             return TabBarView(
               children: [
                 const FolderList(),
-                const FreeVideosTab(),
-                const PremiumVideosTab(),
+                _buildFilteredVideoList(provider.freeVideos, query, provider.loadVideos),
+                _buildFilteredVideoList(provider.premiumVideos, query, provider.loadVideos),
               ],
             );
           },
         ),
       ),
     );
+  }
+
+  Widget _buildFilteredVideoList(List<VideoModel> videos, String query, Future<void> Function() onRefresh) {
+    if (query.isEmpty) {
+      return VideoList(videos: videos, onRefresh: onRefresh);
+    }
+    
+    final lowercaseQuery = query.toLowerCase();
+    final filteredVideos = videos.where((v) {
+      return v.displayName.toLowerCase().contains(lowercaseQuery) ||
+          v.fileName.toLowerCase().contains(lowercaseQuery) ||
+          (v.author?.toLowerCase().contains(lowercaseQuery) ?? false) ||
+          (v.category?.toLowerCase().contains(lowercaseQuery) ?? false) ||
+          v.tags.any((tag) => tag.toLowerCase().contains(lowercaseQuery));
+    }).toList();
+
+    return VideoList(videos: filteredVideos, onRefresh: onRefresh);
   }
 }

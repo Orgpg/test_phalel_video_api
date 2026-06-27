@@ -22,6 +22,7 @@ class _UploadVideoScreenState extends State<UploadVideoScreen> {
   
   final _fileNameController = TextEditingController();
   final _displayNameController = TextEditingController();
+  final _authorController = TextEditingController();
   final _categoryController = TextEditingController();
   final _descriptionController = TextEditingController();
   final _tagsController = TextEditingController();
@@ -93,9 +94,36 @@ class _UploadVideoScreenState extends State<UploadVideoScreen> {
   Future<void> _startUpload() async {
     if (!_formKey.currentState!.validate() || _videoFile == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select a video file and fill all fields')),
+        const SnackBar(content: Text('Please select a video file and fill all required fields')),
       );
       return;
+    }
+
+    final folder = _selectedFolder ?? 'General';
+    final folderRegex = RegExp(r'^[a-zA-Z0-9\._\-]+$');
+    if (!folderRegex.hasMatch(folder)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Folder name can only contain letters, numbers, dots, dashes, and underscores')),
+      );
+      return;
+    }
+
+    final videoMime = lookupMimeType(_videoFile!.name) ?? 'video/mp4';
+    if (videoMime != 'video/mp4' && videoMime != 'video/webm') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Allowed video types: video/mp4, video/webm')),
+      );
+      return;
+    }
+
+    if (_thumbnailFile != null) {
+      final thumbMime = lookupMimeType(_thumbnailFile!.name) ?? 'image/jpeg';
+      if (thumbMime != 'image/jpeg' && thumbMime != 'image/png' && thumbMime != 'image/webp') {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Allowed thumbnail types: image/jpeg, image/png, image/webp')),
+        );
+        return;
+      }
     }
 
     setState(() {
@@ -106,11 +134,9 @@ class _UploadVideoScreenState extends State<UploadVideoScreen> {
 
     try {
       final repo = UploadRepository(context.read<DioClient>());
-      final folder = _selectedFolder ?? 'General';
 
       // Step 1: Video Presigned URL
       setState(() => _statusMessage = 'Requesting video upload URL...');
-      final videoMime = lookupMimeType(_videoFile!.name) ?? 'video/mp4';
       final videoInfo = await repo.getPresignedUrl(
         assetType: 'video',
         folder: folder,
@@ -135,7 +161,7 @@ class _UploadVideoScreenState extends State<UploadVideoScreen> {
       String? thumbnailR2Key;
       String? thumbnailMime;
 
-      // Step 3 & 4: Optional Thumbnail
+      // Step 3: Optional Thumbnail
       if (_thumbnailFile != null) {
         setState(() => _statusMessage = 'Requesting thumbnail upload URL...');
         thumbnailMime = lookupMimeType(_thumbnailFile!.name) ?? 'image/jpeg';
@@ -161,7 +187,7 @@ class _UploadVideoScreenState extends State<UploadVideoScreen> {
         );
       }
 
-      // Step 5: Submit Metadata
+      // Step 4: Submit Metadata
       setState(() => _statusMessage = 'Submitting metadata for review...');
       final tags = _tagsController.text.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
       
@@ -176,6 +202,7 @@ class _UploadVideoScreenState extends State<UploadVideoScreen> {
         thumbnailFileType: thumbnailMime,
         thumbnailObjectKey: thumbnailR2Key,
         displayName: _displayNameController.text,
+        author: _authorController.text,
         category: _categoryController.text,
         description: _descriptionController.text,
         tags: tags,
@@ -290,12 +317,21 @@ class _UploadVideoScreenState extends State<UploadVideoScreen> {
               TextFormField(
                 controller: _displayNameController,
                 decoration: const InputDecoration(labelText: 'Display Name', border: OutlineInputBorder()),
+                maxLength: 120,
+                validator: (v) => v!.isEmpty ? 'Required' : null,
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _authorController,
+                decoration: const InputDecoration(labelText: 'Author', border: OutlineInputBorder()),
+                maxLength: 120,
                 validator: (v) => v!.isEmpty ? 'Required' : null,
               ),
               const SizedBox(height: 16),
               TextFormField(
                 controller: _categoryController,
                 decoration: const InputDecoration(labelText: 'Category', border: OutlineInputBorder()),
+                maxLength: 80,
                 validator: (v) => v!.isEmpty ? 'Required' : null,
               ),
               const SizedBox(height: 16),
@@ -303,13 +339,23 @@ class _UploadVideoScreenState extends State<UploadVideoScreen> {
                 controller: _descriptionController,
                 decoration: const InputDecoration(labelText: 'Description', border: OutlineInputBorder()),
                 maxLines: 3,
+                maxLength: 1000,
                 validator: (v) => v!.isEmpty ? 'Required' : null,
               ),
               const SizedBox(height: 16),
               TextFormField(
                 controller: _tagsController,
                 decoration: const InputDecoration(labelText: 'Tags (comma separated)', border: OutlineInputBorder(), hintText: 'networking, tutorial'),
-                validator: (v) => v!.isEmpty ? 'At least one tag required' : null,
+                validator: (v) {
+                  if (v == null || v.isEmpty) return 'At least one tag required';
+                  final tags = v.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+                  if (tags.isEmpty) return 'At least one tag required';
+                  if (tags.length > 20) return 'Maximum 20 tags allowed';
+                  for (var tag in tags) {
+                    if (tag.length > 40) return 'Each tag must be max 40 chars';
+                  }
+                  return null;
+                },
               ),
               const SizedBox(height: 16),
               
