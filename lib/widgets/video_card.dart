@@ -18,18 +18,39 @@ class VideoCard extends StatelessWidget {
 
   Future<Uint8List?> _fetchThumbnail(String url) async {
     if (url.isEmpty) return null;
+    
+    // Fix localhost for Android Emulator if needed (though this is for Desktop)
+    // But let's keep it consistent with what the user might be using in .env
+    
     try {
-      final token = dotenv.get('API_TOKEN');
-      final response = await Dio().get(
+      final token = dotenv.get('API_TOKEN', fallback: '');
+      
+      final dio = Dio(BaseOptions(
+        connectTimeout: const Duration(seconds: 5),
+        receiveTimeout: const Duration(seconds: 5),
+      ));
+
+      final response = await dio.get(
         url,
         options: Options(
           responseType: ResponseType.bytes,
-          headers: {'Authorization': 'Bearer $token'},
+          headers: {
+            'Authorization': 'Bearer $token',
+            'Accept': 'image/*',
+          },
+          validateStatus: (status) => status == 200,
         ),
       );
+
+      final contentType = response.headers.value('content-type');
+      if (contentType != null && !contentType.startsWith('image/')) {
+        debugPrint('Thumbnail fetch failed: Response is not an image ($contentType). URL: $url');
+        return null;
+      }
+
       return Uint8List.fromList(response.data);
     } catch (e) {
-      debugPrint('Error fetching thumbnail: $e');
+      debugPrint('Error fetching thumbnail for ${video.displayName}: $e. URL: $url');
       return null;
     }
   }
@@ -52,21 +73,52 @@ class VideoCard extends StatelessWidget {
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return Container(
-                      color: Colors.grey[300],
-                      child: const Center(child: CircularProgressIndicator()),
+                      color: Colors.grey[200],
+                      child: const Center(
+                        child: SizedBox(
+                          width: 30,
+                          height: 30,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      ),
                     );
                   }
-                  if (snapshot.hasData && snapshot.data != null) {
+                  
+                  if (snapshot.hasError || !snapshot.hasData || snapshot.data == null) {
+                    return Container(
+                      color: Colors.grey[300],
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.image_not_supported, size: 40, color: Colors.grey),
+                          const SizedBox(height: 4),
+                          Text(
+                            'No Thumbnail',
+                            style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
+
+                  try {
                     return Image.memory(
                       snapshot.data!,
                       fit: BoxFit.cover,
                       width: double.infinity,
+                      errorBuilder: (context, error, stackTrace) {
+                        return Container(
+                          color: Colors.grey[300],
+                          child: const Center(child: Icon(Icons.broken_image, size: 40)),
+                        );
+                      },
+                    );
+                  } catch (e) {
+                    return Container(
+                      color: Colors.grey[300],
+                      child: const Center(child: Icon(Icons.error, size: 40)),
                     );
                   }
-                  return Container(
-                    color: Colors.grey[300],
-                    child: const Icon(Icons.broken_image, size: 50),
-                  );
                 },
               ),
             ),
@@ -187,9 +239,10 @@ extension ColorExtension on Color {
     );
   }
 }
-  String _formatFileSize(int bytes) {
-    if (bytes <= 0) return "0 B";
-    const suffixes = ["B", "KB", "MB", "GB", "TB"];
-    var i = (math.log(bytes.toDouble()) / math.log(1024)).floor();
-    return "${(bytes / math.pow(1024, i)).toStringAsFixed(1)} ${suffixes[i]}";
-  }
+
+String _formatFileSize(int bytes) {
+  if (bytes <= 0) return "0 B";
+  const suffixes = ["B", "KB", "MB", "GB", "TB"];
+  var i = (math.log(bytes.toDouble()) / math.log(1024)).floor();
+  return "${(bytes / math.pow(1024, i)).toStringAsFixed(1)} ${suffixes[i]}";
+}
