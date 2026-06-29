@@ -42,9 +42,16 @@ class VideoCard extends StatelessWidget {
         ),
       );
 
+      debugPrint('Thumbnail response status: ${response.statusCode} for ${video.displayName}');
+
       final contentType = response.headers.value('content-type');
       if (contentType != null && !contentType.startsWith('image/')) {
-        debugPrint('Thumbnail fetch failed: Response is not an image ($contentType). URL: $url');
+        try {
+          final errorBody = String.fromCharCodes(response.data);
+          debugPrint('Thumbnail fetch failed: Response is not an image ($contentType). Body: $errorBody. URL: $url');
+        } catch (e) {
+          debugPrint('Thumbnail fetch failed: Response is not an image ($contentType). URL: $url');
+        }
         return null;
       }
 

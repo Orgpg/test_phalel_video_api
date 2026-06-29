@@ -27,7 +27,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
   }
 
   Future<void> _initializePlayer() async {
-    final token = dotenv.get('API_TOKEN');
+    final token = dotenv.get('API_TOKEN', fallback: '');
     final videoUrl = widget.video.videoUrl;
     
     debugPrint('Initializing video: $videoUrl');
@@ -37,8 +37,10 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
         throw Exception('Video URL is empty');
       }
 
-      final baseUrl = dotenv.get('BASE_URL', fallback: '');
+      final baseUrl = dotenv.get('BASE_URL', fallback: '').replaceAll(RegExp(r'/$'), '');
       final isInternalUrl = videoUrl.startsWith(baseUrl);
+
+      debugPrint('Is internal URL: $isInternalUrl, Base URL: $baseUrl');
 
       _videoPlayerController = VideoPlayerController.networkUrl(
         Uri.parse(videoUrl),
@@ -111,48 +113,50 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
       ),
       body: Column(
         children: [
-          AspectRatio(
-            aspectRatio: 16 / 9,
-            child: Center(
-              child: _isLoading
-                  ? const Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        CircularProgressIndicator(),
-                        SizedBox(height: 20),
-                        Text('Loading Video...', style: TextStyle(color: Colors.white)),
-                      ],
-                    )
-                  : _errorMessage != null
-                      ? Padding(
-                          padding: const EdgeInsets.all(20.0),
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const Icon(Icons.error_outline, color: Colors.red, size: 60),
-                              const SizedBox(height: 16),
-                              Text(
-                                'Failed to load video: $_errorMessage',
-                                style: const TextStyle(color: Colors.white),
-                                textAlign: TextAlign.center,
-                              ),
-                              const SizedBox(height: 20),
-                              ElevatedButton(
-                                onPressed: () {
-                                  setState(() {
-                                    _isLoading = true;
-                                    _errorMessage = null;
-                                  });
-                                  _initializePlayer();
-                                },
-                                child: const Text('Retry'),
-                              )
-                            ],
-                          ),
-                        )
-                      : _chewieController != null
-                          ? Chewie(controller: _chewieController!)
-                          : const Text('Initialization Failed', style: TextStyle(color: Colors.white)),
+          Flexible(
+            child: AspectRatio(
+              aspectRatio: 16 / 9,
+              child: Center(
+                child: _isLoading
+                    ? const Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          CircularProgressIndicator(),
+                          SizedBox(height: 20),
+                          Text('Loading Video...', style: TextStyle(color: Colors.white)),
+                        ],
+                      )
+                    : _errorMessage != null
+                        ? Padding(
+                            padding: const EdgeInsets.all(20.0),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(Icons.error_outline, color: Colors.red, size: 60),
+                                const SizedBox(height: 16),
+                                Text(
+                                  'Failed to load video: $_errorMessage',
+                                  style: const TextStyle(color: Colors.white),
+                                  textAlign: TextAlign.center,
+                                ),
+                                const SizedBox(height: 20),
+                                ElevatedButton(
+                                  onPressed: () {
+                                    setState(() {
+                                      _isLoading = true;
+                                      _errorMessage = null;
+                                    });
+                                    _initializePlayer();
+                                  },
+                                  child: const Text('Retry'),
+                                )
+                              ],
+                            ),
+                          )
+                        : _chewieController != null
+                            ? Chewie(controller: _chewieController!)
+                            : const Text('Initialization Failed', style: TextStyle(color: Colors.white)),
+              ),
             ),
           ),
           Expanded(
@@ -177,12 +181,12 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
                             ),
                       ),
                     const SizedBox(height: 16),
-                    Row(
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
                       children: [
                         _buildInfoChip(context, widget.video.accessType, widget.video.isPremium ? Colors.amber : Colors.green),
-                        const SizedBox(width: 8),
                         _buildInfoChip(context, widget.video.category ?? 'Uncategorized', Colors.blue),
-                        const SizedBox(width: 8),
                         _buildInfoChip(context, widget.video.normalizedFolder, Colors.orange),
                       ],
                     ),
