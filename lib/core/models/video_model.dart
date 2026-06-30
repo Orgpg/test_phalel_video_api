@@ -54,8 +54,8 @@ class VideoModel {
       accessType: json['accessType']?.toString().toUpperCase() ?? json['access_type']?.toString().toUpperCase() ?? 'FREE',
       fileSize: json['fileSize'] is int ? json['fileSize'] : (json['file_size'] is int ? json['file_size'] : int.tryParse(json['fileSize']?.toString() ?? json['file_size']?.toString() ?? '0') ?? 0),
       fileType: json['fileType'] ?? json['file_type'] ?? '',
-      r2ObjectKey: json['r2ObjectKey'] ?? json['r2_object_key'] ?? '',
-      thumbnailObjectKey: json['thumbnailObjectKey'] ?? json['thumbnail_object_key'],
+      r2ObjectKey: json['r2ObjectKey'] ?? json['r2_object_key'] ?? json['objectKey'] ?? json['object_key'] ?? '',
+      thumbnailObjectKey: json['thumbnailObjectKey'] ?? json['thumbnail_object_key'] ?? json['thumbnailObjectKey'],
       createdAt: json['createdAt'] != null 
           ? DateTime.tryParse(json['createdAt'].toString()) ?? DateTime.now()
           : (json['created_at'] != null ? DateTime.tryParse(json['created_at'].toString()) ?? DateTime.now() : DateTime.now()),

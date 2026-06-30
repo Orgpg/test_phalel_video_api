@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import '../network/dio_client.dart';
 
 class UploadRepository {
@@ -22,17 +23,23 @@ class UploadRepository {
     required String fileType,
     required int fileSize,
   }) async {
-    final response = await _dioClient.dio.post(
-      '/api/mobile/uploads/presigned-url',
-      data: {
-        'assetType': assetType,
-        'folder': folder,
-        'fileName': fileName,
-        'fileType': fileType,
-        'fileSize': fileSize,
-      },
-    );
-    return response.data;
+    try {
+      final response = await _dioClient.dio.post(
+        '/api/mobile/uploads/presigned-url',
+        data: {
+          'assetType': assetType,
+          'folder': folder,
+          'fileName': fileName,
+          'fileType': fileType,
+          'fileSize': fileSize,
+        },
+      );
+      return response.data;
+    } on DioException catch (e) {
+      final errorData = e.response?.data;
+      debugPrint('Presigned URL Error: $errorData');
+      throw Exception(errorData?['error'] ?? errorData?['message'] ?? 'Failed to get upload URL');
+    }
   }
 
   Future<void> uploadBytes({
@@ -59,7 +66,7 @@ class UploadRepository {
     required String folder,
     required int fileSize,
     required String fileType,
-    required String r2ObjectKey,
+    required String objectKey,
     String? thumbnailFileName,
     int? thumbnailFileSize,
     String? thumbnailFileType,
@@ -76,13 +83,13 @@ class UploadRepository {
       'folder': folder,
       'fileSize': fileSize,
       'fileType': fileType,
-      'r2ObjectKey': r2ObjectKey,
-      'accessType': accessType.toUpperCase(),
+      'objectKey': objectKey,
       'displayName': displayName,
       'author': author,
-      'description': description,
       'category': category,
+      'description': description,
       'tags': tags,
+      'accessType': accessType.toUpperCase(),
     };
 
     // Add thumbnail fields only if they exist
@@ -93,10 +100,19 @@ class UploadRepository {
       data['thumbnailObjectKey'] = thumbnailObjectKey;
     }
 
-    final response = await _dioClient.dio.post(
-      '/api/mobile/uploads',
-      data: data,
-    );
-    return response.data;
+    debugPrint('Submitting Metadata with data: $data');
+
+    try {
+      final response = await _dioClient.dio.post(
+        '/api/mobile/uploads',
+        data: data,
+      );
+      return response.data;
+    } on DioException catch (e) {
+      final errorData = e.response?.data;
+      debugPrint('Submit Metadata Error: $errorData');
+      debugPrint('Request Data was: $data');
+      throw Exception(errorData?['error'] ?? errorData?['message'] ?? 'Failed to submit metadata');
+    }
   }
 }

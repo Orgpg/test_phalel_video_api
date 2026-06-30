@@ -145,10 +145,17 @@ class _UploadVideoScreenState extends State<UploadVideoScreen> {
         fileSize: _videoFile!.size,
       );
 
+      final String? videoPresignedUrl = videoInfo['presignedUrl'];
+      final String? videoR2Key = videoInfo['r2ObjectKey'] ?? videoInfo['objectKey'];
+
+      if (videoPresignedUrl == null || videoR2Key == null) {
+        throw Exception('Failed to get video upload URL or Object Key from server');
+      }
+
       // Step 2: Upload Video Bytes
       setState(() => _statusMessage = 'Uploading video file...');
       await repo.uploadBytes(
-        url: videoInfo['presignedUrl'],
+        url: videoPresignedUrl,
         bytes: _videoFile!.bytes!,
         contentType: videoMime,
         onProgress: (sent, total) {
@@ -158,36 +165,43 @@ class _UploadVideoScreenState extends State<UploadVideoScreen> {
         },
       );
 
-      String? thumbnailR2Key;
-      String? thumbnailMime;
+      String? finalThumbnailR2Key;
+      String? finalThumbnailMime;
 
       // Step 3: Optional Thumbnail
       if (_thumbnailFile != null) {
         setState(() => _statusMessage = 'Requesting thumbnail upload URL...');
-        thumbnailMime = lookupMimeType(_thumbnailFile!.name) ?? 'image/jpeg';
+        finalThumbnailMime = lookupMimeType(_thumbnailFile!.name) ?? 'image/jpeg';
         final thumbInfo = await repo.getPresignedUrl(
           assetType: 'thumbnail',
           folder: folder,
           fileName: _thumbnailFile!.name,
-          fileType: thumbnailMime,
+          fileType: finalThumbnailMime,
           fileSize: _thumbnailFile!.size,
         );
 
-        setState(() => _statusMessage = 'Uploading thumbnail...');
-        thumbnailR2Key = thumbInfo['r2ObjectKey'];
-        await repo.uploadBytes(
-          url: thumbInfo['presignedUrl'],
-          bytes: _thumbnailFile!.bytes!,
-          contentType: thumbnailMime,
-          onProgress: (sent, total) {
-            setState(() {
-              _uploadProgress = 0.7 + (sent / total * 0.2); // +20% for thumb
-            });
-          },
-        );
+        final String? thumbPresignedUrl = thumbInfo['presignedUrl'];
+        final String? thumbR2Key = thumbInfo['r2ObjectKey'] ?? thumbInfo['objectKey'];
+
+        if (thumbPresignedUrl != null && thumbR2Key != null) {
+          setState(() => _statusMessage = 'Uploading thumbnail...');
+          await repo.uploadBytes(
+            url: thumbPresignedUrl,
+            bytes: _thumbnailFile!.bytes!,
+            contentType: finalThumbnailMime,
+            onProgress: (sent, total) {
+              setState(() {
+                _uploadProgress = 0.7 + (sent / total * 0.2); // +20% for thumb
+              });
+            },
+          );
+          finalThumbnailR2Key = thumbR2Key;
+        } else {
+          debugPrint('Thumbnail upload skipped: Could not get presigned URL');
+        }
       }
 
-      // Step 4: Submit Metadata
+      // Step 4: Submit Metadata (Only if video upload succeeded)
       setState(() => _statusMessage = 'Submitting metadata for review...');
       final tags = _tagsController.text.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
       
@@ -196,11 +210,11 @@ class _UploadVideoScreenState extends State<UploadVideoScreen> {
         folder: folder,
         fileSize: _videoFile!.size,
         fileType: videoMime,
-        r2ObjectKey: videoInfo['r2ObjectKey'],
+        objectKey: videoR2Key,
         thumbnailFileName: _thumbnailFile?.name,
         thumbnailFileSize: _thumbnailFile?.size,
-        thumbnailFileType: thumbnailMime,
-        thumbnailObjectKey: thumbnailR2Key,
+        thumbnailFileType: finalThumbnailMime,
+        thumbnailObjectKey: finalThumbnailR2Key,
         displayName: _displayNameController.text,
         author: _authorController.text,
         category: _categoryController.text,
