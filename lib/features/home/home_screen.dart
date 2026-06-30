@@ -19,7 +19,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   bool _isSearching = false;
   final TextEditingController _searchController = TextEditingController();
-  String _version = "v1.1.0";
+  String _version = "v1.1.1";
 
   @override
   void initState() {
