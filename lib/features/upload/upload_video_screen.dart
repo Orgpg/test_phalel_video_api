@@ -23,40 +23,54 @@ class _UploadVideoScreenState extends State<UploadVideoScreen> {
   final _fileNameController = TextEditingController();
   final _displayNameController = TextEditingController();
   final _authorController = TextEditingController();
-  final _categoryController = TextEditingController();
   final _descriptionController = TextEditingController();
   final _tagsController = TextEditingController();
   
   String? _selectedFolder;
   List<String> _folders = ['General'];
+  String? _selectedCategory;
+  List<String> _categories = [];
   String _accessType = 'FREE';
 
   bool _isUploading = false;
-  bool _isLoadingFolders = true;
+  bool _isLoadingData = true;
   double _uploadProgress = 0;
   String _statusMessage = '';
 
   @override
   void initState() {
     super.initState();
-    _loadFolders();
+    _loadInitialData();
   }
 
-  Future<void> _loadFolders() async {
+  Future<void> _loadInitialData() async {
     try {
       final repo = UploadRepository(context.read<DioClient>());
-      final folders = await repo.fetchFolders();
+      final results = await Future.wait([
+        repo.fetchFolders(),
+        repo.fetchCategories(),
+      ]);
+
+      final folders = results[0] as List<String>;
+      final categories = results[1] as List<String>;
+
       setState(() {
         _folders = folders.isNotEmpty ? folders : ['General'];
         _selectedFolder = _folders.contains('General') ? 'General' : _folders.first;
-        _isLoadingFolders = false;
+        
+        _categories = categories;
+        if (_categories.isNotEmpty) {
+          _selectedCategory = _categories.first;
+        }
+        
+        _isLoadingData = false;
       });
     } catch (e) {
-      debugPrint('Error loading folders: $e');
+      debugPrint('Error loading initial data: $e');
       setState(() {
         _folders = ['General'];
         _selectedFolder = 'General';
-        _isLoadingFolders = false;
+        _isLoadingData = false;
       });
     }
   }
@@ -217,7 +231,7 @@ class _UploadVideoScreenState extends State<UploadVideoScreen> {
         thumbnailObjectKey: finalThumbnailR2Key,
         displayName: _displayNameController.text,
         author: _authorController.text,
-        category: _categoryController.text,
+        category: _selectedCategory ?? '',
         description: _descriptionController.text,
         tags: tags,
         accessType: _accessType,
@@ -270,7 +284,7 @@ class _UploadVideoScreenState extends State<UploadVideoScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Upload New Video')),
-      body: _isLoadingFolders 
+      body: _isLoadingData 
         ? const Center(child: CircularProgressIndicator())
         : SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
@@ -342,12 +356,21 @@ class _UploadVideoScreenState extends State<UploadVideoScreen> {
                 validator: (v) => v!.isEmpty ? 'Required' : null,
               ),
               const SizedBox(height: 16),
-              TextFormField(
-                controller: _categoryController,
-                decoration: const InputDecoration(labelText: 'Category', border: OutlineInputBorder()),
-                maxLength: 80,
-                validator: (v) => v!.isEmpty ? 'Required' : null,
-              ),
+              if (_categories.isNotEmpty)
+                DropdownButtonFormField<String>(
+                  value: _selectedCategory,
+                  decoration: const InputDecoration(labelText: 'Category', border: OutlineInputBorder()),
+                  items: _categories.map((cat) => DropdownMenuItem(value: cat, child: Text(cat))).toList(),
+                  onChanged: _isUploading ? null : (v) => setState(() => _selectedCategory = v),
+                  validator: (v) => v == null ? 'Required' : null,
+                )
+              else
+                TextFormField(
+                  onChanged: (v) => _selectedCategory = v,
+                  decoration: const InputDecoration(labelText: 'Category', border: OutlineInputBorder()),
+                  maxLength: 80,
+                  validator: (v) => (v == null || v.isEmpty) ? 'Required' : null,
+                ),
               const SizedBox(height: 16),
               TextFormField(
                 controller: _descriptionController,

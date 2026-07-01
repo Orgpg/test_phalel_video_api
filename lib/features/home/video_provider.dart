@@ -11,12 +11,14 @@ class VideoProvider with ChangeNotifier {
 
   List<VideoModel> _allVideos = [];
   List<String> _apiFolders = [];
+  List<String> _apiCategories = [];
   VideoState _state = VideoState.initial;
   String _errorMessage = '';
 
   List<VideoModel> get allVideos => _allVideos;
   List<VideoModel> get freeVideos => _allVideos.where((v) => v.isFree).toList();
   List<VideoModel> get premiumVideos => _allVideos.where((v) => v.isPremium).toList();
+  List<String> get apiCategories => _apiCategories;
   VideoState get state => _state;
   String get errorMessage => _errorMessage;
 
@@ -75,14 +77,16 @@ class VideoProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      // Load both videos and folders in parallel
+      // Load videos, folders, and categories in parallel
       final results = await Future.wait([
         _repository.fetchVideos(),
         _repository.fetchFolders(),
+        _repository.fetchCategories(),
       ]);
 
       _allVideos = results[0] as List<VideoModel>;
       _apiFolders = results[1] as List<String>;
+      _apiCategories = results[2] as List<String>;
 
       _state = VideoState.loaded;
     } catch (e) {

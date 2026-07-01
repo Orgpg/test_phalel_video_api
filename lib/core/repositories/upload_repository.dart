@@ -16,6 +16,19 @@ class UploadRepository {
     return ['General'];
   }
 
+  Future<List<String>> fetchCategories() async {
+    try {
+      final response = await _dioClient.dio.get('/api/categories');
+      if (response.data is Map && response.data['categories'] is List) {
+        return List<String>.from(response.data['categories']);
+      }
+      return [];
+    } catch (e) {
+      debugPrint('Error fetching categories: $e');
+      return [];
+    }
+  }
+
   Future<Map<String, dynamic>> getPresignedUrl({
     required String assetType,
     required String folder,

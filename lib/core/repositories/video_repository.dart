@@ -46,4 +46,19 @@ class VideoRepository {
       return [];
     }
   }
+
+  Future<List<String>> fetchCategories() async {
+    try {
+      final response = await _dioClient.dio.get('/api/categories');
+      if (response.statusCode == 200) {
+        if (response.data is Map && response.data['categories'] is List) {
+          return List<String>.from(response.data['categories']);
+        }
+      }
+      return [];
+    } catch (e) {
+      debugPrint('Error fetching categories: $e');
+      return [];
+    }
+  }
 }
