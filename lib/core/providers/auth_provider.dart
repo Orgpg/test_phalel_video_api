@@ -32,6 +32,8 @@ class AuthProvider extends ChangeNotifier {
   bool get isAuthenticated => _state == AuthState.authenticated;
 
   Future<void> initialize() async {
+    if (_state == AuthState.loading) return; // Prevent multiple simultaneous calls
+    
     _state = AuthState.loading;
     notifyListeners();
 
@@ -40,25 +42,28 @@ class AuthProvider extends ChangeNotifier {
       if (token == null) {
         _state = AuthState.unauthenticated;
       } else {
-        await _fetchCurrentUser();
+        _user = await _authRepository.getMe();
+        _state = AuthState.authenticated;
       }
-    } catch (e) {
-      await logout();
-      _state = AuthState.unauthenticated;
-    }
-    notifyListeners();
-  }
-
-  Future<void> _fetchCurrentUser() async {
-    try {
-      _user = await _authRepository.getMe();
-      _state = AuthState.authenticated;
     } catch (e) {
       if (e.toString().contains('401')) {
         await logout();
       } else {
         _state = AuthState.error;
         _errorMessage = e.toString();
+      }
+    }
+    notifyListeners();
+  }
+
+  /// Refreshes the user data without triggering the global loading state
+  Future<void> refreshUser() async {
+    try {
+      _user = await _authRepository.getMe();
+      notifyListeners();
+    } catch (e) {
+      if (e.toString().contains('401')) {
+        await logout();
       }
     }
   }
@@ -124,7 +129,7 @@ class AuthProvider extends ChangeNotifier {
     try {
       await _verificationRepository.submitVerification(verification);
       // After submission, fetch user again to get the PENDING status
-      await _fetchCurrentUser();
+      await refreshUser();
       notifyListeners();
     } catch (e) {
       rethrow;

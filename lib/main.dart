@@ -1,5 +1,3 @@
-import 'dart:io';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:go_router/go_router.dart';
@@ -16,7 +14,6 @@ import 'features/auth/auth_wrapper.dart';
 import 'features/auth/login_screen.dart';
 import 'features/auth/signup_screen.dart';
 import 'features/auth/onboarding_screen.dart';
-import 'features/auth/verification_screen.dart';
 import 'features/home/folder_videos_screen.dart';
 import 'features/home/home_screen.dart';
 import 'features/home/video_provider.dart';
@@ -82,10 +79,6 @@ final GoRouter _router = GoRouter(
     GoRoute(
       path: '/onboarding',
       builder: (context, state) => const OnboardingScreen(),
-    ),
-    GoRoute(
-      path: '/verification',
-      builder: (context, state) => const VerificationScreen(),
     ),
     GoRoute(
       path: '/profile',

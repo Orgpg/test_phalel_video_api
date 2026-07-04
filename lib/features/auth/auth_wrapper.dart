@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/providers/auth_provider.dart';
 import '../home/home_screen.dart';
+import '../profile/profile_screen.dart';
 import 'login_screen.dart';
 import 'onboarding_screen.dart';
-import 'verification_screen.dart';
 
 class AuthWrapper extends StatefulWidget {
   const AuthWrapper({super.key});
@@ -58,7 +58,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
           // In a real app, maybe you allow Home access but with restricted features.
           // The prompt says: "If verification is null or rejected show verification form -> Submit verification -> Home/Profile"
           if (user.verification == null || user.verification!.status == 'REJECTED') {
-            return const VerificationScreen();
+            return const ProfileScreen();
           }
 
           // 3. Authenticated, Onboarded, and Verified (or Pending)
