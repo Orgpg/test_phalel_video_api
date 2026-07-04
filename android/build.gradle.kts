@@ -5,6 +5,22 @@ allprojects {
     }
 }
 
+subprojects {
+    project.configurations.all {
+        resolutionStrategy.eachDependency {
+            if (requested.group == "androidx.activity") {
+                useVersion("1.9.3")
+            }
+            if (requested.group == "androidx.core") {
+                useVersion("1.15.0")
+            }
+            if (requested.group == "androidx.navigationevent") {
+                useVersion("1.0.0")
+            }
+        }
+    }
+}
+
 val newBuildDir: Directory =
     rootProject.layout.buildDirectory
         .dir("../../build")
