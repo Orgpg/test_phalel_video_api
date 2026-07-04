@@ -73,6 +73,23 @@ class AuthRepository {
     }
   }
 
+  Future<void> resetPassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    try {
+      await _dioClient.dio.post(
+        '/api/mobile/auth/reset-password',
+        data: {
+          'currentPassword': currentPassword,
+          'newPassword': newPassword,
+        },
+      );
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
   String _handleError(DioException e) {
     if (e.response?.data != null && e.response?.data['error'] != null) {
       return e.response?.data['error'];

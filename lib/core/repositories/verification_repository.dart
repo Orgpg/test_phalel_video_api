@@ -1,4 +1,6 @@
+import 'dart:typed_data';
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import '../models/user_verification.dart';
 import '../network/dio_client.dart';
 
@@ -18,6 +20,55 @@ class VerificationRepository {
     }
   }
 
+  Future<Map<String, dynamic>> getVerificationPresignedUrl({
+    required String fileName,
+    required String fileType,
+    required int fileSize,
+    required String documentType,
+  }) async {
+    try {
+      final response = await _dioClient.dio.post(
+        '/api/mobile/users/me/verification/presigned-url',
+        data: {
+          'fileName': fileName,
+          'fileType': fileType,
+          'fileSize': fileSize,
+          'documentType': documentType,
+        },
+      );
+      return response.data;
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  Future<void> uploadImageToPresignedUrl({
+    required String url,
+    required Uint8List bytes,
+    required String contentType,
+  }) async {
+    try {
+      // Use a fresh Dio instance to avoid global interceptors for the PUT request
+      final dio = Dio();
+      await dio.put(
+        url,
+        data: bytes,
+        options: Options(
+          headers: {
+            'Content-Type': contentType,
+            'Content-Length': bytes.length,
+          },
+        ),
+      );
+    } on DioException catch (e) {
+      debugPrint('MinIO Upload Error: ${e.response?.data ?? e.message}');
+      throw 'Failed to upload image to storage. Please try again.';
+    } catch (e) {
+      debugPrint('MinIO Upload Error: $e');
+      throw 'Failed to upload image to storage.';
+    }
+  }
+
   Future<Map<String, dynamic>> submitVerification(UserVerification verification) async {
     try {
       final response = await _dioClient.dio.post(
@@ -33,6 +84,9 @@ class VerificationRepository {
   String _handleError(DioException e) {
     if (e.response?.data != null && e.response?.data['error'] != null) {
       return e.response?.data['error'];
+    }
+    if (e.response?.data != null && e.response?.data['message'] != null) {
+      return e.response?.data['message'];
     }
     return e.message ?? 'An unknown error occurred';
   }

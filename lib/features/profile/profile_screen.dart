@@ -1,8 +1,14 @@
+import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
+import 'package:mime/mime.dart';
 import 'package:provider/provider.dart';
 import '../../core/models/user_verification.dart';
 import '../../core/providers/auth_provider.dart';
+import '../../core/repositories/verification_repository.dart';
+import '../../core/network/dio_client.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -12,26 +18,37 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  final _formKey = GlobalKey<FormState>();
+  final _verificationFormKey = GlobalKey<FormState>();
+  final _resetPasswordFormKey = GlobalKey<FormState>();
   
-  // Form Controllers
+  // Verification Form Controllers
   final _fullNameController = TextEditingController();
   final _nrcController = TextEditingController();
   final _phoneController = TextEditingController();
   final _dobController = TextEditingController();
-  final _nrcFrontUrlController = TextEditingController();
-  final _nrcBackUrlController = TextEditingController();
-  final _selfieUrlController = TextEditingController();
+  
+  // Reset Password Controllers
+  final _currentPasswordController = TextEditingController();
+  final _newPasswordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
   
   String _selectedGender = 'male';
-  bool _isSubmitting = false;
+  bool _isSubmittingVerification = false;
+  bool _isResettingPassword = false;
+  bool _obscureCurrentPassword = true;
+  bool _obscureNewPassword = true;
+  bool _obscureConfirmPassword = true;
 
-  @override
-  void initState() {
-    super.initState();
-    // Profile is already initialized by AuthWrapper. 
-    // We only need to call refreshUser if we want to ensure latest data without showing a splash screen.
-  }
+  // Image Upload State
+  XFile? _nrcFrontImage;
+  XFile? _nrcBackImage;
+  XFile? _selfieImage;
+  
+  String? _nrcFrontObjectKey;
+  String? _nrcBackObjectKey;
+  String? _selfieObjectKey;
+  
+  String _uploadStatus = '';
 
   @override
   void dispose() {
@@ -39,20 +56,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _nrcController.dispose();
     _phoneController.dispose();
     _dobController.dispose();
-    _nrcFrontUrlController.dispose();
-    _nrcBackUrlController.dispose();
-    _selfieUrlController.dispose();
+    _currentPasswordController.dispose();
+    _newPasswordController.dispose();
+    _confirmPasswordController.dispose();
     super.dispose();
-  }
-
-  Future<void> _fetchProfile() async {
-    await context.read<AuthProvider>().refreshUser();
-  }
-
-  bool _isValidUrl(String? value) {
-    if (value == null || value.isEmpty) return false;
-    final urlPattern = r'^(http|https):\/\/[a-zA-Z0-9\-\.]+\.[a-zA-Z]{2,3}(/\S*)?$';
-    return RegExp(urlPattern).hasMatch(value);
   }
 
   Future<void> _selectDate(BuildContext context) async {
@@ -69,59 +76,150 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  Future<void> _submitVerification() async {
-    if (_formKey.currentState!.validate()) {
-      setState(() => _isSubmitting = true);
-      try {
-        final verification = UserVerification(
-          userId: '', // Server handles this
-          fullName: _fullNameController.text.trim(),
-          nrcNumber: _nrcController.text.trim(),
-          phone: _phoneController.text.trim(),
-          dateOfBirth: _dobController.text.trim(),
-          gender: _selectedGender,
-          nrcFrontUrl: _nrcFrontUrlController.text.trim(),
-          nrcBackUrl: _nrcBackUrlController.text.trim(),
-          selfieUrl: _selfieUrlController.text.trim(),
-          status: 'PENDING',
-          submittedAt: DateTime.now(),
-        );
+  Future<void> _pickImage(String type) async {
+    final ImagePicker picker = ImagePicker();
+    final XFile? image = await picker.pickImage(
+      source: type == 'selfie' ? ImageSource.camera : ImageSource.gallery,
+      imageQuality: 70,
+    );
 
-        await context.read<AuthProvider>().submitVerification(verification);
-        
+    if (image != null) {
+      final size = await image.length();
+      if (size > 8 * 1024 * 1024) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Verification submitted successfully!'),
-              backgroundColor: Colors.green,
-            ),
-          );
-          // Refresh profile to update UI
-          await context.read<AuthProvider>().refreshUser();
-        }
-      } catch (e) {
-        if (mounted) {
-          String errorMessage = 'An error occurred. Please try again.';
-          final errorStr = e.toString();
-          
-          if (errorStr.contains('400')) {
-            errorMessage = 'Invalid input. Please check your verification information.';
-          } else if (errorStr.contains('401')) {
-            // AuthProvider usually handles logout on 401
-            return;
-          } else if (errorStr.contains('500')) {
-            errorMessage = 'Server error. Please try again later.';
-          } else if (errorStr.contains('SocketException') || errorStr.contains('Network')) {
-            errorMessage = 'Network error. Please try again.';
-          }
-          
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(errorMessage), backgroundColor: Colors.red),
+            const SnackBar(content: Text('Image size must be less than 8 MB')),
           );
         }
-      } finally {
-        if (mounted) setState(() => _isSubmitting = false);
+        return;
       }
+
+      setState(() {
+        if (type == 'nrc-front') _nrcFrontImage = image;
+        if (type == 'nrc-back') _nrcBackImage = image;
+        if (type == 'selfie') _selfieImage = image;
+      });
+    }
+  }
+
+  Future<String> _uploadToMinio(XFile file, String documentType) async {
+    final repo = VerificationRepository(context.read<DioClient>());
+    final bytes = await file.readAsBytes();
+    final mimeType = lookupMimeType(file.path) ?? 'image/jpeg';
+    
+    setState(() => _uploadStatus = 'Uploading $documentType...');
+    
+    final presignedData = await repo.getVerificationPresignedUrl(
+      fileName: file.name,
+      fileType: mimeType,
+      fileSize: bytes.length,
+      documentType: documentType,
+    );
+
+    await repo.uploadImageToPresignedUrl(
+      url: presignedData['presignedUrl'],
+      bytes: bytes,
+      contentType: mimeType,
+    );
+
+    return presignedData['objectKey'];
+  }
+
+  Future<void> _submitVerification() async {
+    if (!_verificationFormKey.currentState!.validate()) return;
+    
+    if (_nrcFrontImage == null || _nrcBackImage == null || _selfieImage == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select all required images')),
+      );
+      return;
+    }
+
+    setState(() {
+      _isSubmittingVerification = true;
+      _uploadStatus = 'Starting upload...';
+    });
+
+    try {
+      _nrcFrontObjectKey = await _uploadToMinio(_nrcFrontImage!, 'nrc-front');
+      _nrcBackObjectKey = await _uploadToMinio(_nrcBackImage!, 'nrc-back');
+      _selfieObjectKey = await _uploadToMinio(_selfieImage!, 'selfie');
+
+      setState(() => _uploadStatus = 'Submitting metadata...');
+
+      final verification = UserVerification(
+        userId: '',
+        fullName: _fullNameController.text.trim(),
+        nrcNumber: _nrcController.text.trim(),
+        phone: _phoneController.text.trim(),
+        dateOfBirth: _dobController.text.trim(),
+        gender: _selectedGender,
+        nrcFrontObjectKey: _nrcFrontObjectKey,
+        nrcBackObjectKey: _nrcBackObjectKey,
+        selfieObjectKey: _selfieObjectKey,
+        status: 'PENDING',
+        submittedAt: DateTime.now(),
+      );
+
+      await context.read<AuthProvider>().submitVerification(verification);
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Verification submitted successfully!'), backgroundColor: Colors.green),
+        );
+        await context.read<AuthProvider>().refreshUser();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSubmittingVerification = false;
+          _uploadStatus = '';
+        });
+      }
+    }
+  }
+
+  Future<void> _handleResetPassword() async {
+    if (!_resetPasswordFormKey.currentState!.validate()) return;
+
+    setState(() => _isResettingPassword = true);
+
+    try {
+      await context.read<AuthProvider>().resetPassword(
+        currentPassword: _currentPasswordController.text,
+        newPassword: _newPasswordController.text,
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Password updated successfully'), backgroundColor: Colors.green),
+        );
+        _currentPasswordController.clear();
+        _newPasswordController.clear();
+        _confirmPasswordController.clear();
+      }
+    } catch (e) {
+      if (mounted) {
+        String msg = 'An error occurred';
+        if (e.toString().contains('password is incorrect')) {
+          msg = 'Current password is incorrect';
+        } else if (e.toString().contains('Invalid input')) {
+          msg = 'Please check your password inputs';
+        } else {
+          msg = e.toString();
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(msg), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isResettingPassword = false);
     }
   }
 
@@ -165,18 +263,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     _buildSectionTitle('Account Information'),
                     _buildInfoTile('Username', user.username),
                     _buildInfoTile('Email', user.email),
-                    _buildInfoTile('Role Preference', user.preference?.role ?? 'Not set'),
-                    _buildInfoTile('Language', user.preference?.preferredLanguage ?? 'Not set'),
+                    
+                    const Divider(height: 40),
+                    _buildSectionTitle('Reset Password'),
+                    _buildResetPasswordForm(),
                     
                     const Divider(height: 40),
                     _buildSectionTitle('Identity Verification'),
                     _buildVerificationSection(auth),
                     
                     const Divider(height: 40),
-                    _buildSectionTitle('Interests'),
-                    _buildInterestsSection(user),
-                    
-                    const SizedBox(height: 40),
                     _buildLogoutButton(auth),
                     const SizedBox(height: 40),
                   ],
@@ -245,6 +341,58 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  Widget _buildResetPasswordForm() {
+    return Card(
+      elevation: 0,
+      color: Colors.grey.shade50,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: Colors.grey.shade200)),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Form(
+          key: _resetPasswordFormKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _buildPasswordField(_currentPasswordController, 'Current Password', _obscureCurrentPassword, () => setState(() => _obscureCurrentPassword = !_obscureCurrentPassword)),
+              const SizedBox(height: 12),
+              _buildPasswordField(_newPasswordController, 'New Password', _obscureNewPassword, () => setState(() => _obscureNewPassword = !_obscureNewPassword), validator: (v) {
+                if (v == null || v.isEmpty) return 'Required';
+                if (v.length < 8) return 'Min 8 characters';
+                if (v == _currentPasswordController.text) return 'Cannot be same as old password';
+                return null;
+              }),
+              const SizedBox(height: 12),
+              _buildPasswordField(_confirmPasswordController, 'Confirm New Password', _obscureConfirmPassword, () => setState(() => _obscureConfirmPassword = !_obscureConfirmPassword), validator: (v) {
+                if (v != _newPasswordController.text) return 'Passwords do not match';
+                return null;
+              }),
+              const SizedBox(height: 20),
+              ElevatedButton(
+                onPressed: _isResettingPassword ? null : _handleResetPassword,
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.deepPurple, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 16)),
+                child: _isResettingPassword ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Text('UPDATE PASSWORD'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPasswordField(TextEditingController controller, String label, bool obscure, VoidCallback onToggle, {String? Function(String?)? validator}) {
+    return TextFormField(
+      controller: controller,
+      obscureText: obscure,
+      decoration: InputDecoration(
+        labelText: label,
+        prefixIcon: const Icon(Icons.lock_outline),
+        suffixIcon: IconButton(icon: Icon(obscure ? Icons.visibility_off : Icons.visibility), onPressed: onToggle),
+        border: const OutlineInputBorder(),
+      ),
+      validator: validator ?? (v) => (v == null || v.isEmpty) ? 'Required' : null,
+    );
+  }
+
   Widget _buildVerificationSection(AuthProvider auth) {
     final verification = auth.user?.verification;
     final status = verification?.status.toUpperCase() ?? 'NOT_SUBMITTED';
@@ -270,7 +418,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       );
     }
 
-    // Show form if NOT_SUBMITTED or REJECTED
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -289,10 +436,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       children: [
         Icon(icon, color: color),
         const SizedBox(width: 8),
-        Text(
-          text,
-          style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 16),
-        ),
+        Text(text, style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 16)),
       ],
     );
   }
@@ -301,21 +445,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Card(
       elevation: 0,
       color: Colors.grey.shade50,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: Colors.grey.shade200),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: Colors.grey.shade200)),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Form(
-          key: _formKey,
+          key: _verificationFormKey,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(
-                isResubmission ? 'Update Details' : 'Verify Your Identity',
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-              ),
+              Text(isResubmission ? 'Update Details' : 'Verify Your Identity', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
               const SizedBox(height: 16),
               _buildTextField(_fullNameController, 'Full Name', Icons.person),
               const SizedBox(height: 12),
@@ -323,22 +461,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
               const SizedBox(height: 12),
               _buildTextField(_phoneController, 'Phone Number', Icons.phone, keyboardType: TextInputType.phone),
               const SizedBox(height: 12),
-              
-              // Date Picker Field
               TextFormField(
                 controller: _dobController,
                 readOnly: true,
                 onTap: () => _selectDate(context),
-                decoration: const InputDecoration(
-                  labelText: 'Date of Birth',
-                  prefixIcon: Icon(Icons.calendar_today),
-                  border: OutlineInputBorder(),
-                ),
+                decoration: const InputDecoration(labelText: 'Date of Birth', prefixIcon: Icon(Icons.calendar_today), border: OutlineInputBorder()),
                 validator: (v) => (v == null || v.isEmpty) ? 'Required' : null,
               ),
               const SizedBox(height: 12),
-
-              // Gender Dropdown
               DropdownButtonFormField<String>(
                 value: _selectedGender,
                 items: const [
@@ -347,38 +477,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   DropdownMenuItem(value: 'other', child: Text('Other')),
                 ],
                 onChanged: (v) => setState(() => _selectedGender = v!),
-                decoration: const InputDecoration(
-                  labelText: 'Gender',
-                  prefixIcon: Icon(Icons.people),
-                  border: OutlineInputBorder(),
-                ),
+                decoration: const InputDecoration(labelText: 'Gender', prefixIcon: Icon(Icons.people), border: OutlineInputBorder()),
               ),
-              const SizedBox(height: 20),
-              
-              const Text('Photo Evidence URLs', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-              const SizedBox(height: 8),
-              _buildUrlField(_nrcFrontUrlController, 'NRC Front Image URL'),
-              const SizedBox(height: 12),
-              _buildUrlField(_nrcBackUrlController, 'NRC Back Image URL'),
-              const SizedBox(height: 12),
-              _buildUrlField(_selfieUrlController, 'Selfie Image URL'),
-              
               const SizedBox(height: 24),
+              const Text('Photo Evidence (Required)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+              const SizedBox(height: 16),
+              _buildImagePickerTile('NRC Front Image', _nrcFrontImage, () => _pickImage('nrc-front')),
+              const SizedBox(height: 12),
+              _buildImagePickerTile('NRC Back Image', _nrcBackImage, () => _pickImage('nrc-back')),
+              const SizedBox(height: 12),
+              _buildImagePickerTile('Selfie with ID', _selfieImage, () => _pickImage('selfie')),
+              const SizedBox(height: 24),
+              if (_uploadStatus.isNotEmpty) ...[
+                Text(_uploadStatus, textAlign: TextAlign.center, style: const TextStyle(color: Colors.blue, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+              ],
               ElevatedButton(
-                onPressed: _isSubmitting ? null : _submitVerification,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.deepPurple,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                ),
-                child: _isSubmitting
-                    ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                      )
-                    : Text(isResubmission ? 'RESUBMIT VERIFICATION' : 'SUBMIT VERIFICATION'),
+                onPressed: _isSubmittingVerification ? null : _submitVerification,
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.deepPurple, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
+                child: _isSubmittingVerification ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : Text(isResubmission ? 'RESUBMIT VERIFICATION' : 'SUBMIT VERIFICATION'),
               ),
             ],
           ),
@@ -387,39 +504,45 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  Widget _buildImagePickerTile(String label, XFile? image, VoidCallback onTap) {
+    return InkWell(
+      onTap: _isSubmittingVerification ? null : onTap,
+      child: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade300), borderRadius: BorderRadius.circular(8), color: Colors.white),
+        child: Row(
+          children: [
+            Container(
+              width: 60,
+              height: 60,
+              decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(4)),
+              child: image != null 
+                ? ClipRRect(
+                    borderRadius: BorderRadius.circular(4), 
+                    child: kIsWeb 
+                      ? Image.network(image.path, fit: BoxFit.cover) 
+                      : Image.file(File(image.path), fit: BoxFit.cover)
+                  )
+                : Icon(Icons.camera_alt, color: Colors.grey.shade400),
+            ),
+            const SizedBox(width: 16),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(label, style: const TextStyle(fontWeight: FontWeight.w500)),
+              Text(image != null ? 'Image selected' : 'No image selected', style: TextStyle(color: image != null ? Colors.green : Colors.grey, fontSize: 12)),
+            ])),
+            if (image != null) const Icon(Icons.check_circle, color: Colors.green) else const Icon(Icons.arrow_forward_ios, size: 14),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildTextField(TextEditingController controller, String label, IconData icon, {TextInputType? keyboardType}) {
     return TextFormField(
       controller: controller,
-      decoration: InputDecoration(
-        labelText: label,
-        prefixIcon: Icon(icon),
-        border: const OutlineInputBorder(),
-      ),
+      decoration: InputDecoration(labelText: label, prefixIcon: Icon(icon), border: const OutlineInputBorder()),
       keyboardType: keyboardType,
       validator: (v) => (v == null || v.isEmpty) ? 'Required' : null,
-    );
-  }
-
-  Widget _buildUrlField(TextEditingController controller, String label) {
-    return TextFormField(
-      controller: controller,
-      decoration: InputDecoration(
-        labelText: label,
-        hintText: 'https://example.com/image.jpg',
-        border: const OutlineInputBorder(),
-      ),
-      validator: (v) => !_isValidUrl(v) ? 'Enter a valid URL (http/https)' : null,
-    );
-  }
-
-  Widget _buildInterestsSection(dynamic user) {
-    final skills = user.preference?.learnSkills;
-    if (skills == null || skills.isEmpty) {
-      return const Text('No interests set', style: TextStyle(color: Colors.grey, fontStyle: FontStyle.italic));
-    }
-    return Wrap(
-      spacing: 8,
-      children: skills.map<Widget>((s) => Chip(label: Text(s.toString()))).toList(),
     );
   }
 
@@ -428,12 +551,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       onPressed: () => auth.logout(),
       icon: const Icon(Icons.logout),
       label: const Text('LOGOUT'),
-      style: ElevatedButton.styleFrom(
-        minimumSize: const Size(double.infinity, 50),
-        backgroundColor: Colors.red.shade50,
-        foregroundColor: Colors.red,
-        side: BorderSide(color: Colors.red.shade200),
-      ),
+      style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 50), backgroundColor: Colors.red.shade50, foregroundColor: Colors.red, side: BorderSide(color: Colors.red.shade200)),
     );
   }
 }

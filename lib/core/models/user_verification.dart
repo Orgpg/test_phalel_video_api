@@ -5,9 +5,13 @@ class UserVerification {
   final String phone;
   final String dateOfBirth;
   final String gender; // MALE | FEMALE | OTHER
-  final String nrcFrontUrl;
-  final String nrcBackUrl;
-  final String selfieUrl;
+  final String? nrcFrontUrl;
+  final String? nrcBackUrl;
+  final String? selfieUrl;
+  final String? nrcFrontObjectKey;
+  final String? nrcBackObjectKey;
+  final String? selfieObjectKey;
+  final String? imageBucketName;
   final String status; // PENDING | VERIFIED | REJECTED
   final DateTime submittedAt;
   final DateTime? verifiedAt;
@@ -20,9 +24,13 @@ class UserVerification {
     required this.phone,
     required this.dateOfBirth,
     required this.gender,
-    required this.nrcFrontUrl,
-    required this.nrcBackUrl,
-    required this.selfieUrl,
+    this.nrcFrontUrl,
+    this.nrcBackUrl,
+    this.selfieUrl,
+    this.nrcFrontObjectKey,
+    this.nrcBackObjectKey,
+    this.selfieObjectKey,
+    this.imageBucketName,
     required this.status,
     required this.submittedAt,
     this.verifiedAt,
@@ -37,9 +45,13 @@ class UserVerification {
       phone: json['phone'] ?? '',
       dateOfBirth: json['dateOfBirth'] ?? '',
       gender: json['gender']?.toString().toUpperCase() ?? 'MALE',
-      nrcFrontUrl: json['nrcFrontUrl'] ?? '',
-      nrcBackUrl: json['nrcBackUrl'] ?? '',
-      selfieUrl: json['selfieUrl'] ?? '',
+      nrcFrontUrl: json['nrcFrontUrl'],
+      nrcBackUrl: json['nrcBackUrl'],
+      selfieUrl: json['selfieUrl'],
+      nrcFrontObjectKey: json['nrcFrontObjectKey'],
+      nrcBackObjectKey: json['nrcBackObjectKey'],
+      selfieObjectKey: json['selfieObjectKey'],
+      imageBucketName: json['imageBucketName'],
       status: json['status']?.toString().toUpperCase() ?? 'PENDING',
       submittedAt: json['submittedAt'] != null 
           ? DateTime.parse(json['submittedAt']) 
@@ -52,15 +64,24 @@ class UserVerification {
   }
 
   Map<String, dynamic> toJson() {
-    return {
+    final map = {
       'fullName': fullName,
       'nrcNumber': nrcNumber,
       'phone': phone,
       'dateOfBirth': dateOfBirth,
       'gender': gender.toLowerCase(),
-      'nrcFrontUrl': nrcFrontUrl,
-      'nrcBackUrl': nrcBackUrl,
-      'selfieUrl': selfieUrl,
     };
+
+    if (nrcFrontObjectKey != null) map['nrcFrontObjectKey'] = nrcFrontObjectKey!;
+    if (nrcBackObjectKey != null) map['nrcBackObjectKey'] = nrcBackObjectKey!;
+    if (selfieObjectKey != null) map['selfieObjectKey'] = selfieObjectKey!;
+    
+    // Support legacy URL fields if needed, but the prompt says do not send them when using MinIO
+    // So we only send what's provided.
+    if (nrcFrontUrl != null) map['nrcFrontUrl'] = nrcFrontUrl!;
+    if (nrcBackUrl != null) map['nrcBackUrl'] = nrcBackUrl!;
+    if (selfieUrl != null) map['selfieUrl'] = selfieUrl!;
+
+    return map;
   }
 }
