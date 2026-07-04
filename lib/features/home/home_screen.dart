@@ -116,6 +116,10 @@ class _HomeScreenState extends State<HomeScreen> {
               icon: const Icon(Icons.refresh),
               onPressed: () => context.read<VideoProvider>().loadVideos(),
             ),
+            IconButton(
+              icon: const Icon(Icons.account_circle),
+              onPressed: () => context.push('/profile'),
+            ),
           ],
         ),
         floatingActionButton: FloatingActionButton.extended(
