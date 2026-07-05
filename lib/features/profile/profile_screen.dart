@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:mime/mime.dart';
@@ -154,13 +155,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
         submittedAt: DateTime.now(),
       );
 
-      await context.read<AuthProvider>().submitVerification(verification);
+      final authProvider = context.read<AuthProvider>();
+      await authProvider.submitVerification(verification);
       
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Verification submitted successfully!'), backgroundColor: Colors.green),
         );
-        await context.read<AuthProvider>().refreshUser();
+        await authProvider.refreshUser();
       }
     } catch (e) {
       if (mounted) {
@@ -183,8 +185,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     setState(() => _isResettingPassword = true);
 
+    final authProvider = context.read<AuthProvider>();
+
     try {
-      await context.read<AuthProvider>().resetPassword(
+      await authProvider.resetPassword(
         currentPassword: _currentPasswordController.text,
         newPassword: _newPasswordController.text,
       );
@@ -258,6 +262,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     _buildResetPasswordForm(),
                     
                     if (canVerify) ...[
+                      const Divider(height: 40),
+                      _buildSectionTitle('Teacher Tools'),
+                      ListTile(
+                        leading: const Icon(Icons.dashboard, color: Colors.deepPurple),
+                        title: const Text('Manage Mentor Listings'),
+                        subtitle: const Text('Create or edit your teaching sessions'),
+                        trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                        onTap: () => context.push('/mentor-management'),
+                      ),
                       const Divider(height: 40),
                       _buildSectionTitle('Identity Verification'),
                       _buildVerificationSection(auth),

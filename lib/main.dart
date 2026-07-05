@@ -6,20 +6,31 @@ import 'package:provider/provider.dart';
 import 'core/models/video_model.dart';
 import 'core/network/dio_client.dart';
 import 'core/providers/auth_provider.dart';
+import 'core/providers/booking_provider.dart';
+import 'core/providers/mentor_provider.dart';
+import 'core/providers/wallet_provider.dart';
 import 'core/services/auth_service.dart';
+import 'core/services/booking_service.dart';
+import 'core/services/mentor_service.dart';
 import 'core/services/preference_service.dart';
 import 'core/services/verification_service.dart';
 import 'core/services/video_service.dart';
+import 'core/services/wallet_service.dart';
 import 'features/auth/auth_wrapper.dart';
 import 'features/auth/login_screen.dart';
 import 'features/auth/signup_screen.dart';
 import 'features/auth/onboarding_screen.dart';
+import 'features/bookings/my_bookings_screen.dart';
 import 'features/home/folder_videos_screen.dart';
 import 'features/home/home_screen.dart';
 import 'features/home/video_provider.dart';
+import 'features/mentors/mentor_detail_screen.dart';
+import 'features/mentors/mentor_list_screen.dart';
+import 'features/mentors/mentor_management_screen.dart';
 import 'features/profile/profile_screen.dart';
 import 'features/upload/upload_video_screen.dart';
 import 'features/video_player/video_player_screen.dart';
+import 'features/wallet/wallet_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -32,14 +43,16 @@ Future<void> main() async {
 
   late final DioClient dioClient;
   dioClient = DioClient(onUnauthorized: () {
-    // This is a bit tricky since we are outside the provider context
-    // But we can trigger a logout if we have access to the navigator or a global key
-    // For now, AuthProvider handles 401s in its catch blocks which call logout()
+    // AuthProvider handles 401s in its catch blocks which call logout()
   });
+
   final authService = AuthService(dioClient);
   final preferenceService = PreferenceService(dioClient);
   final verificationService = VerificationService(dioClient);
   final videoService = VideoService(dioClient);
+  final mentorService = MentorService(dioClient);
+  final bookingService = BookingService(dioClient);
+  final walletService = WalletService(dioClient);
 
   runApp(
     MultiProvider(
@@ -54,6 +67,15 @@ Future<void> main() async {
         ),
         ChangeNotifierProvider(
           create: (_) => VideoProvider(videoService),
+        ),
+        ChangeNotifierProvider(
+          create: (_) => MentorProvider(mentorService),
+        ),
+        ChangeNotifierProvider(
+          create: (_) => BookingProvider(bookingService),
+        ),
+        ChangeNotifierProvider(
+          create: (_) => WalletProvider(walletService),
         ),
       ],
       child: const MyApp(),
@@ -105,6 +127,29 @@ final GoRouter _router = GoRouter(
         final folderName = state.extra as String;
         return FolderVideosScreen(folderName: folderName);
       },
+    ),
+    GoRoute(
+      path: '/wallet',
+      builder: (context, state) => const WalletScreen(),
+    ),
+    GoRoute(
+      path: '/mentors',
+      builder: (context, state) => const MentorListScreen(),
+    ),
+    GoRoute(
+      path: '/mentor-detail',
+      builder: (context, state) {
+        final id = state.extra as String;
+        return MentorDetailScreen(mentorId: id);
+      },
+    ),
+    GoRoute(
+      path: '/my-bookings',
+      builder: (context, state) => const MyBookingsScreen(),
+    ),
+    GoRoute(
+      path: '/mentor-management',
+      builder: (context, state) => const MentorManagementScreen(),
     ),
   ],
 );

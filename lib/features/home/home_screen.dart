@@ -113,8 +113,16 @@ class _HomeScreenState extends State<HomeScreen> {
               },
             ),
             IconButton(
-              icon: const Icon(Icons.refresh),
-              onPressed: () => context.read<VideoProvider>().loadVideos(),
+              icon: const Icon(Icons.stars, color: Colors.amber),
+              onPressed: () => context.push('/wallet'),
+            ),
+            IconButton(
+              icon: const Icon(Icons.school),
+              onPressed: () => context.push('/mentors'),
+            ),
+            IconButton(
+              icon: const Icon(Icons.event_note),
+              onPressed: () => context.push('/my-bookings'),
             ),
             IconButton(
               icon: const Icon(Icons.account_circle),
