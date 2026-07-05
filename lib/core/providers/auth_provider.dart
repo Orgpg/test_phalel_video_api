@@ -3,16 +3,16 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../models/mobile_user.dart';
 import '../models/user_preference.dart';
 import '../models/user_verification.dart';
-import '../repositories/auth_repository.dart';
-import '../repositories/preference_repository.dart';
-import '../repositories/verification_repository.dart';
+import '../services/auth_service.dart';
+import '../services/preference_service.dart';
+import '../services/verification_service.dart';
 
 enum AuthState { initial, loading, authenticated, unauthenticated, error }
 
 class AuthProvider extends ChangeNotifier {
-  final AuthRepository _authRepository;
-  final PreferenceRepository _preferenceRepository;
-  final VerificationRepository _verificationRepository;
+  final AuthService _authService;
+  final PreferenceService _preferenceService;
+  final VerificationService _verificationService;
   final _storage = const FlutterSecureStorage();
 
   MobileUser? _user;
@@ -20,9 +20,9 @@ class AuthProvider extends ChangeNotifier {
   String? _errorMessage;
 
   AuthProvider(
-    this._authRepository,
-    this._preferenceRepository,
-    this._verificationRepository,
+    this._authService,
+    this._preferenceService,
+    this._verificationService,
   );
 
   MobileUser? get user => _user;
@@ -32,7 +32,7 @@ class AuthProvider extends ChangeNotifier {
   bool get isAuthenticated => _state == AuthState.authenticated;
 
   Future<void> initialize() async {
-    if (_state == AuthState.loading) return; // Prevent multiple simultaneous calls
+    if (_state == AuthState.loading) return;
     
     _state = AuthState.loading;
     notifyListeners();
@@ -42,7 +42,7 @@ class AuthProvider extends ChangeNotifier {
       if (token == null) {
         _state = AuthState.unauthenticated;
       } else {
-        _user = await _authRepository.getMe();
+        await refreshUser();
         _state = AuthState.authenticated;
       }
     } catch (e) {
@@ -56,14 +56,15 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Refreshes the user data without triggering the global loading state
   Future<void> refreshUser() async {
     try {
-      _user = await _authRepository.getMe();
+      _user = await _authService.getMe();
       notifyListeners();
     } catch (e) {
       if (e.toString().contains('401')) {
         await logout();
+      } else {
+        rethrow;
       }
     }
   }
@@ -74,9 +75,10 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final response = await _authRepository.login(email: email, password: password);
+      final response = await _authService.login(email: email, password: password);
       await _storage.write(key: 'auth_token', value: response.token);
-      _user = response.user;
+      // Requirement: After login success, call GET /api/mobile/users/me
+      await refreshUser();
       _state = AuthState.authenticated;
     } catch (e) {
       _state = AuthState.unauthenticated;
@@ -85,19 +87,21 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> signup(String username, String email, String password) async {
+  Future<void> signup(String username, String email, String password, {String? name}) async {
     _state = AuthState.loading;
     _errorMessage = null;
     notifyListeners();
 
     try {
-      final response = await _authRepository.signup(
+      final response = await _authService.signup(
         username: username,
         email: email,
         password: password,
+        name: name,
       );
       await _storage.write(key: 'auth_token', value: response.token);
-      _user = response.user;
+      // Requirement: After signup success, call GET /api/mobile/users/me
+      await refreshUser();
       _state = AuthState.authenticated;
     } catch (e) {
       _state = AuthState.unauthenticated;
@@ -115,11 +119,9 @@ class AuthProvider extends ChangeNotifier {
 
   Future<void> savePreference(UserPreference preference) async {
     try {
-      final updatedPref = await _preferenceRepository.savePreference(preference);
-      if (_user != null) {
-        _user = _user!.copyWith(preference: updatedPref);
-        notifyListeners();
-      }
+      final updatedPref = await _preferenceService.savePreference(preference);
+      // Refresh user to get the latest data structure from server
+      await refreshUser();
     } catch (e) {
       rethrow;
     }
@@ -127,10 +129,8 @@ class AuthProvider extends ChangeNotifier {
 
   Future<void> submitVerification(UserVerification verification) async {
     try {
-      await _verificationRepository.submitVerification(verification);
-      // After submission, fetch user again to get the PENDING status
+      await _verificationService.submitVerification(verification);
       await refreshUser();
-      notifyListeners();
     } catch (e) {
       rethrow;
     }
@@ -141,7 +141,7 @@ class AuthProvider extends ChangeNotifier {
     required String newPassword,
   }) async {
     try {
-      await _authRepository.resetPassword(
+      await _authService.resetPassword(
         currentPassword: currentPassword,
         newPassword: newPassword,
       );

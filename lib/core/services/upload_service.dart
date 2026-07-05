@@ -3,10 +3,10 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import '../network/dio_client.dart';
 
-class UploadRepository {
+class UploadService {
   final DioClient _dioClient;
 
-  UploadRepository(this._dioClient);
+  UploadService(this._dioClient);
 
   Future<List<String>> fetchFolders() async {
     final response = await _dioClient.dio.get('/api/folders');
@@ -50,7 +50,6 @@ class UploadRepository {
       return response.data;
     } on DioException catch (e) {
       final errorData = e.response?.data;
-      debugPrint('Presigned URL Error: $errorData');
       throw Exception(errorData?['error'] ?? errorData?['message'] ?? 'Failed to get upload URL');
     }
   }
@@ -61,7 +60,6 @@ class UploadRepository {
     required String contentType,
     Function(int, int)? onProgress,
   }) async {
-    // Use a fresh Dio instance for PUT to avoid global interceptors if they interfere
     await Dio().put(
       url,
       data: bytes,
@@ -105,15 +103,12 @@ class UploadRepository {
       'accessType': accessType.toUpperCase(),
     };
 
-    // Add thumbnail fields only if they exist
     if (thumbnailObjectKey != null && thumbnailObjectKey.isNotEmpty) {
       data['thumbnailFileName'] = thumbnailFileName;
       data['thumbnailFileSize'] = thumbnailFileSize;
       data['thumbnailFileType'] = thumbnailFileType;
       data['thumbnailObjectKey'] = thumbnailObjectKey;
     }
-
-    debugPrint('Submitting Metadata with data: $data');
 
     try {
       final response = await _dioClient.dio.post(
@@ -123,8 +118,6 @@ class UploadRepository {
       return response.data;
     } on DioException catch (e) {
       final errorData = e.response?.data;
-      debugPrint('Submit Metadata Error: $errorData');
-      debugPrint('Request Data was: $data');
       throw Exception(errorData?['error'] ?? errorData?['message'] ?? 'Failed to submit metadata');
     }
   }

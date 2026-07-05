@@ -48,20 +48,42 @@ class _AuthWrapperState extends State<AuthWrapper> {
         if (auth.isAuthenticated) {
           final user = auth.user!;
           
-          // 1. Check Preferences (Onboarding)
+          // 1. Check Preferences (Role & Skills)
           if (user.preference == null) {
             return const OnboardingScreen();
           }
 
-          // 2. Check Verification
-          // If no verification submitted or if it's rejected, show verification screen
-          // In a real app, maybe you allow Home access but with restricted features.
-          // The prompt says: "If verification is null or rejected show verification form -> Submit verification -> Home/Profile"
-          if (user.verification == null || user.verification!.status == 'REJECTED') {
-            return const ProfileScreen();
+          final role = user.preference!.role.toUpperCase();
+
+          // 2. If LEARNER, skip KYC and go to main app
+          if (role == 'LEARNER') {
+            return const HomeScreen();
           }
 
-          // 3. Authenticated, Onboarded, and Verified (or Pending)
+          // 3. If TEACHER or BOTH, handle Verification logic
+          if (role == 'TEACHER' || role == 'BOTH') {
+            if (user.verification == null) {
+              // Show KYC verification form (located in ProfileScreen for this app structure)
+              return const ProfileScreen();
+            }
+
+            final vStatus = user.verification!.status.toUpperCase();
+
+            if (vStatus == 'PENDING') {
+              // Show waiting-for-review screen
+              return _buildWaitingScreen(context, auth);
+            }
+
+            if (vStatus == 'REJECTED') {
+              // Show rejected state (handled inline in ProfileScreen)
+              return const ProfileScreen();
+            }
+
+            if (vStatus == 'VERIFIED') {
+              return const HomeScreen();
+            }
+          }
+
           return const HomeScreen();
         }
 
@@ -88,6 +110,53 @@ class _AuthWrapperState extends State<AuthWrapper> {
           ),
         );
       },
+    );
+  }
+
+  Widget _buildWaitingScreen(BuildContext context, AuthProvider auth) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Review in Progress'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout),
+            onPressed: () => auth.logout(),
+          )
+        ],
+      ),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.hourglass_bottom, size: 80, color: Colors.orange),
+              const SizedBox(height: 24),
+              const Text(
+                'Waiting for Review',
+                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Our team is currently reviewing your verification documents. This usually takes 24-48 hours.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.grey, fontSize: 16),
+              ),
+              const SizedBox(height: 32),
+              ElevatedButton.icon(
+                onPressed: () => auth.refreshUser(),
+                icon: const Icon(Icons.refresh),
+                label: const Text('Check Status'),
+              ),
+              const SizedBox(height: 16),
+              TextButton(
+                onPressed: () => auth.logout(),
+                child: const Text('Logout'),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

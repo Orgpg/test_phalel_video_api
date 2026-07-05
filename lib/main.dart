@@ -6,10 +6,10 @@ import 'package:provider/provider.dart';
 import 'core/models/video_model.dart';
 import 'core/network/dio_client.dart';
 import 'core/providers/auth_provider.dart';
-import 'core/repositories/auth_repository.dart';
-import 'core/repositories/preference_repository.dart';
-import 'core/repositories/verification_repository.dart';
-import 'core/repositories/video_repository.dart';
+import 'core/services/auth_service.dart';
+import 'core/services/preference_service.dart';
+import 'core/services/verification_service.dart';
+import 'core/services/video_service.dart';
 import 'features/auth/auth_wrapper.dart';
 import 'features/auth/login_screen.dart';
 import 'features/auth/signup_screen.dart';
@@ -24,18 +24,22 @@ import 'features/video_player/video_player_screen.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  // Load .env file
   try {
     await dotenv.load(fileName: ".env");
   } catch (e) {
     debugPrint("Error loading .env file: $e");
   }
 
-  final dioClient = DioClient();
-  final authRepository = AuthRepository(dioClient);
-  final preferenceRepository = PreferenceRepository(dioClient);
-  final verificationRepository = VerificationRepository(dioClient);
-  final videoRepository = VideoRepository(dioClient);
+  late final DioClient dioClient;
+  dioClient = DioClient(onUnauthorized: () {
+    // This is a bit tricky since we are outside the provider context
+    // But we can trigger a logout if we have access to the navigator or a global key
+    // For now, AuthProvider handles 401s in its catch blocks which call logout()
+  });
+  final authService = AuthService(dioClient);
+  final preferenceService = PreferenceService(dioClient);
+  final verificationService = VerificationService(dioClient);
+  final videoService = VideoService(dioClient);
 
   runApp(
     MultiProvider(
@@ -43,13 +47,13 @@ Future<void> main() async {
         Provider.value(value: dioClient),
         ChangeNotifierProvider(
           create: (_) => AuthProvider(
-            authRepository,
-            preferenceRepository,
-            verificationRepository,
+            authService,
+            preferenceService,
+            verificationService,
           ),
         ),
         ChangeNotifierProvider(
-          create: (_) => VideoProvider(videoRepository),
+          create: (_) => VideoProvider(videoService),
         ),
       ],
       child: const MyApp(),
@@ -111,7 +115,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp.router(
-      title: 'PhaLel Video Test',
+      title: 'PhaLel Video',
       debugShowCheckedModeBanner: false,
       routerConfig: _router,
       theme: ThemeData(
@@ -120,20 +124,12 @@ class MyApp extends StatelessWidget {
           seedColor: Colors.deepPurple,
           brightness: Brightness.light,
         ),
-        appBarTheme: const AppBarTheme(
-          centerTitle: false,
-          elevation: 0,
-        ),
       ),
       darkTheme: ThemeData(
         useMaterial3: true,
         colorScheme: ColorScheme.fromSeed(
           seedColor: Colors.deepPurple,
           brightness: Brightness.dark,
-        ),
-        appBarTheme: const AppBarTheme(
-          centerTitle: false,
-          elevation: 0,
         ),
       ),
       themeMode: ThemeMode.system,

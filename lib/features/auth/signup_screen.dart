@@ -15,6 +15,7 @@ class _SignupScreenState extends State<SignupScreen> {
   final _usernameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _nameController = TextEditingController();
   bool _obscurePassword = true;
 
   @override
@@ -22,6 +23,7 @@ class _SignupScreenState extends State<SignupScreen> {
     _usernameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
+    _nameController.dispose();
     super.dispose();
   }
 
@@ -32,15 +34,16 @@ class _SignupScreenState extends State<SignupScreen> {
         _usernameController.text.trim(),
         _emailController.text.trim(),
         _passwordController.text.trim(),
+        name: _nameController.text.trim().isEmpty ? null : _nameController.text.trim(),
       );
 
       if (mounted) {
-        if (authProvider.state == AuthState.error || authProvider.errorMessage != null) {
+        if (authProvider.errorMessage != null) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(authProvider.errorMessage ?? 'Signup failed')),
+            SnackBar(content: Text(authProvider.errorMessage!)),
           );
         } else if (authProvider.isAuthenticated) {
-          context.go('/');
+          context.go('/auth'); // Let AuthWrapper handle logic
         }
       }
     }
@@ -70,6 +73,15 @@ class _SignupScreenState extends State<SignupScreen> {
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 32),
+                TextFormField(
+                  controller: _nameController,
+                  decoration: const InputDecoration(
+                    labelText: 'Full Name (Optional)',
+                    prefixIcon: Icon(Icons.badge),
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 16),
                 TextFormField(
                   controller: _usernameController,
                   decoration: const InputDecoration(
@@ -131,7 +143,7 @@ class _SignupScreenState extends State<SignupScreen> {
                         foregroundColor: Colors.white,
                       ),
                       child: auth.state == AuthState.loading
-                          ? const CircularProgressIndicator(color: Colors.white)
+                          ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
                           : const Text('SIGN UP', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                     );
                   },

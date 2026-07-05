@@ -33,6 +33,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       );
 
       await context.read<AuthProvider>().savePreference(pref);
+      // AuthWrapper will handle the logic of where to go next based on the new role
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -67,6 +68,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             ),
             const SizedBox(height: 24),
             const Text('What is your primary role?', style: TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
             DropdownButtonFormField<String>(
               value: _selectedRole,
               items: const [
@@ -77,7 +79,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               onChanged: (v) => setState(() => _selectedRole = v!),
               decoration: const InputDecoration(border: OutlineInputBorder()),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 24),
             const Text('Preferred Language', style: TextStyle(fontWeight: FontWeight.bold)),
             Row(
               children: [
@@ -99,7 +101,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 ),
               ],
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 24),
             const Text('Skills you want to learn (comma separated)', style: TextStyle(fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
             TextFormField(
@@ -110,7 +112,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               ),
             ),
             if (_selectedRole != 'learner') ...[
-              const SizedBox(height: 16),
+              const SizedBox(height: 24),
               const Text('Skills you can teach (comma separated)', style: TextStyle(fontWeight: FontWeight.bold)),
               const SizedBox(height: 8),
               TextFormField(
@@ -121,17 +123,18 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 ),
               ),
             ],
-            const SizedBox(height: 32),
+            const SizedBox(height: 40),
             ElevatedButton(
               onPressed: _isSaving ? null : _handleSave,
               style: ElevatedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 backgroundColor: Colors.deepPurple,
                 foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               ),
               child: _isSaving
-                  ? const CircularProgressIndicator(color: Colors.white)
-                  : const Text('SAVE AND CONTINUE', style: TextStyle(fontWeight: FontWeight.bold)),
+                  ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                  : const Text('SAVE AND CONTINUE', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
             ),
           ],
         ),

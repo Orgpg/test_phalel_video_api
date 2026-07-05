@@ -7,7 +7,7 @@ import 'package:mime/mime.dart';
 import 'package:provider/provider.dart';
 import '../../core/models/user_verification.dart';
 import '../../core/providers/auth_provider.dart';
-import '../../core/repositories/verification_repository.dart';
+import '../../core/services/verification_service.dart';
 import '../../core/network/dio_client.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -21,13 +21,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final _verificationFormKey = GlobalKey<FormState>();
   final _resetPasswordFormKey = GlobalKey<FormState>();
   
-  // Verification Form Controllers
   final _fullNameController = TextEditingController();
   final _nrcController = TextEditingController();
   final _phoneController = TextEditingController();
   final _dobController = TextEditingController();
   
-  // Reset Password Controllers
   final _currentPasswordController = TextEditingController();
   final _newPasswordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
@@ -39,14 +37,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _obscureNewPassword = true;
   bool _obscureConfirmPassword = true;
 
-  // Image Upload State
   XFile? _nrcFrontImage;
   XFile? _nrcBackImage;
   XFile? _selfieImage;
-  
-  String? _nrcFrontObjectKey;
-  String? _nrcBackObjectKey;
-  String? _selfieObjectKey;
   
   String _uploadStatus = '';
 
@@ -103,20 +96,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<String> _uploadToMinio(XFile file, String documentType) async {
-    final repo = VerificationRepository(context.read<DioClient>());
+    final service = VerificationService(context.read<DioClient>());
     final bytes = await file.readAsBytes();
     final mimeType = lookupMimeType(file.path) ?? 'image/jpeg';
     
     setState(() => _uploadStatus = 'Uploading $documentType...');
     
-    final presignedData = await repo.getVerificationPresignedUrl(
+    final presignedData = await service.getVerificationPresignedUrl(
       fileName: file.name,
       fileType: mimeType,
       fileSize: bytes.length,
       documentType: documentType,
     );
 
-    await repo.uploadImageToPresignedUrl(
+    await service.uploadImageToPresignedUrl(
       url: presignedData['presignedUrl'],
       bytes: bytes,
       contentType: mimeType,
@@ -141,9 +134,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     });
 
     try {
-      _nrcFrontObjectKey = await _uploadToMinio(_nrcFrontImage!, 'nrc-front');
-      _nrcBackObjectKey = await _uploadToMinio(_nrcBackImage!, 'nrc-back');
-      _selfieObjectKey = await _uploadToMinio(_selfieImage!, 'selfie');
+      final frontKey = await _uploadToMinio(_nrcFrontImage!, 'nrc-front');
+      final backKey = await _uploadToMinio(_nrcBackImage!, 'nrc-back');
+      final selfieKey = await _uploadToMinio(_selfieImage!, 'selfie');
 
       setState(() => _uploadStatus = 'Submitting metadata...');
 
@@ -154,9 +147,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         phone: _phoneController.text.trim(),
         dateOfBirth: _dobController.text.trim(),
         gender: _selectedGender,
-        nrcFrontObjectKey: _nrcFrontObjectKey,
-        nrcBackObjectKey: _nrcBackObjectKey,
-        selfieObjectKey: _selfieObjectKey,
+        nrcFrontObjectKey: frontKey,
+        nrcBackObjectKey: backKey,
+        selfieObjectKey: selfieKey,
         status: 'PENDING',
         submittedAt: DateTime.now(),
       );
@@ -206,16 +199,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
       }
     } catch (e) {
       if (mounted) {
-        String msg = 'An error occurred';
-        if (e.toString().contains('password is incorrect')) {
-          msg = 'Current password is incorrect';
-        } else if (e.toString().contains('Invalid input')) {
-          msg = 'Please check your password inputs';
-        } else {
-          msg = e.toString();
-        }
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(msg), backgroundColor: Colors.red),
+          SnackBar(content: Text(e.toString()), backgroundColor: Colors.red),
         );
       }
     } finally {
@@ -235,6 +220,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (user == null) {
       return const Scaffold(body: Center(child: Text('Not logged in')));
     }
+
+    final role = user.preference?.role.toUpperCase() ?? 'LEARNER';
+    final canVerify = role == 'TEACHER' || role == 'BOTH';
 
     return Scaffold(
       appBar: AppBar(
@@ -263,14 +251,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     _buildSectionTitle('Account Information'),
                     _buildInfoTile('Username', user.username),
                     _buildInfoTile('Email', user.email),
+                    _buildInfoTile('Role', user.preference?.role ?? 'Learner'),
                     
                     const Divider(height: 40),
                     _buildSectionTitle('Reset Password'),
                     _buildResetPasswordForm(),
                     
-                    const Divider(height: 40),
-                    _buildSectionTitle('Identity Verification'),
-                    _buildVerificationSection(auth),
+                    if (canVerify) ...[
+                      const Divider(height: 40),
+                      _buildSectionTitle('Identity Verification'),
+                      _buildVerificationSection(auth),
+                    ],
                     
                     const Divider(height: 40),
                     _buildLogoutButton(auth),
@@ -369,7 +360,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               const SizedBox(height: 20),
               ElevatedButton(
                 onPressed: _isResettingPassword ? null : _handleResetPassword,
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.deepPurple, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 16)),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.deepPurple, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
                 child: _isResettingPassword ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Text('UPDATE PASSWORD'),
               ),
             ],
