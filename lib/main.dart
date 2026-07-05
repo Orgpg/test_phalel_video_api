@@ -32,6 +32,8 @@ import 'features/upload/upload_video_screen.dart';
 import 'features/video_player/video_player_screen.dart';
 import 'features/wallet/wallet_screen.dart';
 
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
@@ -43,7 +45,11 @@ Future<void> main() async {
 
   late final DioClient dioClient;
   dioClient = DioClient(onUnauthorized: () {
-    // AuthProvider handles 401s in its catch blocks which call logout()
+    // If a 401 occurs, we should force a logout and redirect to login
+    // However, since we're using GoRouter, we can't easily use navigatorKey.currentState
+    // without some configuration. 
+    // For now, the most reliable way is to let AuthProvider handle it
+    // by catching the error in the service call.
   });
 
   final authService = AuthService(dioClient);

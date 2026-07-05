@@ -24,6 +24,7 @@ class _UploadVideoScreenState extends State<UploadVideoScreen> {
   final _descriptionController = TextEditingController();
   final _tagsController = TextEditingController();
   
+  bool _isSingleVideo = false;
   String? _selectedFolder;
   List<String> _folders = ['General'];
   String? _selectedCategory;
@@ -106,12 +107,16 @@ class _UploadVideoScreenState extends State<UploadVideoScreen> {
 
     try {
       final service = UploadService(context.read<DioClient>());
-      final folder = _selectedFolder ?? 'General';
       final videoMime = lookupMimeType(_videoFile!.name) ?? 'video/mp4';
 
       setState(() => _statusMessage = 'Requesting video upload URL...');
       final videoInfo = await service.getPresignedUrl(
-        assetType: 'video', folder: folder, fileName: _videoFile!.name, fileType: videoMime, fileSize: _videoFile!.size,
+        assetType: 'video', 
+        folder: _isSingleVideo ? null : (_selectedFolder ?? 'General'), 
+        singleVideoOnly: _isSingleVideo ? true : null,
+        fileName: _videoFile!.name, 
+        fileType: videoMime, 
+        fileSize: _videoFile!.size,
       );
 
       final String? videoUrl = videoInfo['presignedUrl'];
@@ -131,7 +136,12 @@ class _UploadVideoScreenState extends State<UploadVideoScreen> {
         setState(() => _statusMessage = 'Requesting thumbnail upload URL...');
         thumbMime = lookupMimeType(_thumbnailFile!.name) ?? 'image/jpeg';
         final thumbInfo = await service.getPresignedUrl(
-          assetType: 'thumbnail', folder: folder, fileName: _thumbnailFile!.name, fileType: thumbMime, fileSize: _thumbnailFile!.size,
+          assetType: 'thumbnail', 
+          folder: _isSingleVideo ? null : (_selectedFolder ?? 'General'), 
+          singleVideoOnly: _isSingleVideo ? true : null,
+          fileName: _thumbnailFile!.name, 
+          fileType: thumbMime, 
+          fileSize: _thumbnailFile!.size,
         );
         final String? tUrl = thumbInfo['presignedUrl'];
         final String? tKey = thumbInfo['r2ObjectKey'] ?? thumbInfo['objectKey'];
@@ -148,7 +158,8 @@ class _UploadVideoScreenState extends State<UploadVideoScreen> {
       setState(() => _statusMessage = 'Submitting metadata...');
       await service.submitMetadata(
         fileName: _videoFile!.name,
-        folder: folder,
+        folder: _isSingleVideo ? null : (_selectedFolder ?? 'General'),
+        singleVideoOnly: _isSingleVideo ? true : null,
         fileSize: _videoFile!.size,
         fileType: videoMime,
         objectKey: videoKey,
@@ -221,12 +232,20 @@ class _UploadVideoScreenState extends State<UploadVideoScreen> {
                 shape: RoundedRectangleBorder(side: BorderSide(color: Colors.grey.shade300), borderRadius: BorderRadius.circular(8)),
               ),
               const SizedBox(height: 16),
-              DropdownButtonFormField<String>(
-                value: _selectedFolder,
-                decoration: const InputDecoration(labelText: 'Folder', border: OutlineInputBorder()),
-                items: _folders.map((f) => DropdownMenuItem(value: f, child: Text(f))).toList(),
-                onChanged: _isUploading ? null : (v) => setState(() => _selectedFolder = v),
+              SwitchListTile(
+                title: const Text('Single Video (No Folder)'),
+                value: _isSingleVideo, 
+                onChanged: _isUploading ? null : (v) => setState(() => _isSingleVideo = v),
               ),
+              if (!_isSingleVideo) ...[
+                const SizedBox(height: 16),
+                DropdownButtonFormField<String>(
+                  value: _selectedFolder,
+                  decoration: const InputDecoration(labelText: 'Folder', border: OutlineInputBorder()),
+                  items: _folders.map((f) => DropdownMenuItem(value: f, child: Text(f))).toList(),
+                  onChanged: _isUploading ? null : (v) => setState(() => _selectedFolder = v),
+                ),
+              ],
               const SizedBox(height: 16),
               TextFormField(controller: _displayNameController, decoration: const InputDecoration(labelText: 'Display Name', border: OutlineInputBorder()), validator: (v) => v!.isEmpty ? 'Required' : null),
               const SizedBox(height: 16),
@@ -238,13 +257,36 @@ class _UploadVideoScreenState extends State<UploadVideoScreen> {
                   decoration: const InputDecoration(labelText: 'Category', border: OutlineInputBorder()),
                   items: _categories.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
                   onChanged: _isUploading ? null : (v) => setState(() => _selectedCategory = v),
+                  validator: (v) => v == null ? 'Category is required' : null,
                 )
               else
-                TextFormField(onChanged: (v) => _selectedCategory = v, decoration: const InputDecoration(labelText: 'Category', border: OutlineInputBorder())),
+                TextFormField(
+                  onChanged: (v) => _selectedCategory = v, 
+                  decoration: const InputDecoration(labelText: 'Category', border: OutlineInputBorder()),
+                  validator: (v) => (v == null || v.isEmpty) ? 'Category is required' : null,
+                ),
               const SizedBox(height: 16),
-              TextFormField(controller: _descriptionController, decoration: const InputDecoration(labelText: 'Description', border: OutlineInputBorder()), maxLines: 3),
+              TextFormField(
+                controller: _descriptionController,
+                decoration: const InputDecoration(labelText: 'Description', border: OutlineInputBorder()),
+                maxLines: 3,
+                validator: (v) => (v == null || v.isEmpty) ? 'Description is required' : null,
+              ),
               const SizedBox(height: 16),
-              TextFormField(controller: _tagsController, decoration: const InputDecoration(labelText: 'Tags (comma separated)', border: OutlineInputBorder())),
+              TextFormField(
+                controller: _tagsController,
+                decoration: const InputDecoration(
+                  labelText: 'Tags (comma separated)', 
+                  hintText: 'flutter, networking, tutorial',
+                  border: OutlineInputBorder()
+                ),
+                validator: (v) {
+                  if (v == null || v.isEmpty) return 'At least one tag required';
+                  final tags = v.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+                  if (tags.isEmpty) return 'At least one tag required';
+                  return null;
+                },
+              ),
               const SizedBox(height: 24),
               ElevatedButton(
                 onPressed: _isUploading ? null : _startUpload,

@@ -1,12 +1,28 @@
 import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../network/dio_client.dart';
 
 class UploadService {
   final DioClient _dioClient;
 
   UploadService(this._dioClient);
+
+  /// Helper to get a Dio instance configured with the static API_TOKEN
+  /// Some upload endpoints require the mobile-api-key instead of user JWT
+  Dio _getPublicDio() {
+    final publicToken = dotenv.get('API_TOKEN', fallback: '');
+    final dio = Dio(BaseOptions(
+      baseUrl: _dioClient.dio.options.baseUrl,
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+        if (publicToken.isNotEmpty) 'Authorization': 'Bearer $publicToken',
+      },
+    ));
+    return dio;
+  }
 
   Future<List<String>> fetchFolders() async {
     final response = await _dioClient.dio.get('/api/folders');
@@ -31,17 +47,20 @@ class UploadService {
 
   Future<Map<String, dynamic>> getPresignedUrl({
     required String assetType,
-    required String folder,
+    String? folder,
+    bool? singleVideoOnly,
     required String fileName,
     required String fileType,
     required int fileSize,
   }) async {
     try {
-      final response = await _dioClient.dio.post(
+      // Use public Dio instance with API_TOKEN as per "Single Video Upload Flow" requirements
+      final response = await _getPublicDio().post(
         '/api/mobile/uploads/presigned-url',
         data: {
           'assetType': assetType,
-          'folder': folder,
+          if (folder != null) 'folder': folder,
+          if (singleVideoOnly != null) 'singleVideoOnly': singleVideoOnly,
           'fileName': fileName,
           'fileType': fileType,
           'fileSize': fileSize,
@@ -74,7 +93,8 @@ class UploadService {
 
   Future<Map<String, dynamic>> submitMetadata({
     required String fileName,
-    required String folder,
+    String? folder,
+    bool? singleVideoOnly,
     required int fileSize,
     required String fileType,
     required String objectKey,
@@ -91,7 +111,8 @@ class UploadService {
   }) async {
     final Map<String, dynamic> data = {
       'fileName': fileName,
-      'folder': folder,
+      if (folder != null) 'folder': folder,
+      if (singleVideoOnly != null) 'singleVideoOnly': singleVideoOnly,
       'fileSize': fileSize,
       'fileType': fileType,
       'objectKey': objectKey,
@@ -111,7 +132,8 @@ class UploadService {
     }
 
     try {
-      final response = await _dioClient.dio.post(
+      // Use public Dio instance with API_TOKEN as per "Single Video Upload Flow" requirements
+      final response = await _getPublicDio().post(
         '/api/mobile/uploads',
         data: data,
       );

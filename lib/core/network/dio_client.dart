@@ -32,8 +32,10 @@ class DioClient {
         }
         return handler.next(options);
       },
-      onError: (DioException e, handler) {
+      onError: (DioException e, handler) async {
         if (e.response?.statusCode == 401) {
+          // Auto-clear invalid token
+          await _storage.delete(key: 'auth_token');
           if (onUnauthorized != null) {
             onUnauthorized();
           }

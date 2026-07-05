@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
-import '../free_videos/free_videos_tab.dart';
-import '../premium_videos/premium_videos_tab.dart';
 import 'widgets/folder_list.dart';
 import 'widgets/video_list.dart';
 import '../../core/models/video_model.dart';
@@ -19,7 +17,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   bool _isSearching = false;
   final TextEditingController _searchController = TextEditingController();
-  String _version = "v1.1.1";
+  String _version = "v1.1.2";
 
   @override
   void initState() {
@@ -52,7 +50,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final isDesktop = MediaQuery.of(context).size.width > 900;
 
     return DefaultTabController(
-      length: 3,
+      length: 4,
       child: Scaffold(
         appBar: AppBar(
           title: _isSearching
@@ -96,8 +94,9 @@ class _HomeScreenState extends State<HomeScreen> {
             indicatorColor: Colors.white,
             tabs: const [
               Tab(text: 'Folders', icon: Icon(Icons.folder_copy)),
-              Tab(text: 'Free Videos', icon: Icon(Icons.lock_open)),
-              Tab(text: 'Premium Videos', icon: Icon(Icons.star)),
+              Tab(text: 'Single', icon: Icon(Icons.video_library)),
+              Tab(text: 'Free', icon: Icon(Icons.lock_open)),
+              Tab(text: 'Premium', icon: Icon(Icons.star)),
             ],
           ),
           actions: [
@@ -173,6 +172,7 @@ class _HomeScreenState extends State<HomeScreen> {
             return TabBarView(
               children: [
                 const FolderList(),
+                _buildFilteredVideoList(provider.singleVideos, query, provider.loadVideos),
                 _buildFilteredVideoList(provider.freeVideos, query, provider.loadVideos),
                 _buildFilteredVideoList(provider.premiumVideos, query, provider.loadVideos),
               ],

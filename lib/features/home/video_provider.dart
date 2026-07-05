@@ -10,11 +10,13 @@ class VideoProvider with ChangeNotifier {
   VideoProvider(this._service);
 
   List<VideoModel> _allVideos = [];
+  List<VideoModel> _singleVideos = [];
   List<String> _apiFolders = [];
   VideoState _state = VideoState.initial;
   String _errorMessage = '';
 
   List<VideoModel> get allVideos => _allVideos;
+  List<VideoModel> get singleVideos => _singleVideos;
   List<VideoModel> get freeVideos => _allVideos.where((v) => v.isFree).toList();
   List<VideoModel> get premiumVideos => _allVideos.where((v) => v.isPremium).toList();
   VideoState get state => _state;
@@ -49,12 +51,14 @@ class VideoProvider with ChangeNotifier {
 
     try {
       final results = await Future.wait([
-        _service.fetchVideos(),
+        _service.fetchVideos(), // Default: all or as per API
         _service.fetchFolders(),
+        _service.fetchVideos(singleVideoOnly: true),
       ]);
 
       _allVideos = results[0] as List<VideoModel>;
       _apiFolders = results[1] as List<String>;
+      _singleVideos = results[2] as List<VideoModel>;
 
       _state = VideoState.loaded;
     } catch (e) {

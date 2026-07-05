@@ -45,7 +45,7 @@ class VideoModel {
       author: json['author'],
       description: json['description'],
       folder: (json['folder'] == null || json['folder'].toString().trim().isEmpty) 
-          ? 'General' 
+          ? null
           : json['folder'].toString().trim(),
       category: json['category'],
       tags: (json['tags'] is List) 
