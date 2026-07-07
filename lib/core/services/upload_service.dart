@@ -108,6 +108,7 @@ class UploadService {
     required String description,
     required List<String> tags,
     required String accessType,
+    String visibility = 'PUBLIC',
   }) async {
     final Map<String, dynamic> data = {
       'fileName': fileName,
@@ -122,6 +123,7 @@ class UploadService {
       'description': description,
       'tags': tags,
       'accessType': accessType.toUpperCase(),
+      'visibility': visibility,
     };
 
     if (thumbnailObjectKey != null && thumbnailObjectKey.isNotEmpty) {

@@ -9,6 +9,7 @@ import 'core/providers/auth_provider.dart';
 import 'core/providers/booking_provider.dart';
 import 'core/providers/mentor_provider.dart';
 import 'core/providers/wallet_provider.dart';
+import 'core/providers/feed_provider.dart';
 import 'core/services/auth_service.dart';
 import 'core/services/booking_service.dart';
 import 'core/services/mentor_service.dart';
@@ -16,6 +17,10 @@ import 'core/services/preference_service.dart';
 import 'core/services/verification_service.dart';
 import 'core/services/video_service.dart';
 import 'core/services/wallet_service.dart';
+import 'core/services/feed_service.dart';
+import 'core/services/social_service.dart';
+import 'core/services/post_service.dart';
+import 'core/services/upload_service.dart';
 import 'features/auth/auth_wrapper.dart';
 import 'features/auth/login_screen.dart';
 import 'features/auth/signup_screen.dart';
@@ -31,6 +36,9 @@ import 'features/profile/profile_screen.dart';
 import 'features/upload/upload_video_screen.dart';
 import 'features/video_player/video_player_screen.dart';
 import 'features/wallet/wallet_screen.dart';
+import 'features/feed/feed_screen.dart';
+import 'features/posts/create_post_screen.dart';
+import 'features/posts/my_posts_screen.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
@@ -45,11 +53,7 @@ Future<void> main() async {
 
   late final DioClient dioClient;
   dioClient = DioClient(onUnauthorized: () {
-    // If a 401 occurs, we should force a logout and redirect to login
-    // However, since we're using GoRouter, we can't easily use navigatorKey.currentState
-    // without some configuration. 
-    // For now, the most reliable way is to let AuthProvider handle it
-    // by catching the error in the service call.
+    // AuthProvider handles 401s in its catch blocks which call logout()
   });
 
   final authService = AuthService(dioClient);
@@ -59,11 +63,19 @@ Future<void> main() async {
   final mentorService = MentorService(dioClient);
   final bookingService = BookingService(dioClient);
   final walletService = WalletService(dioClient);
+  final feedService = FeedService(dioClient);
+  final socialService = SocialService(dioClient);
+  final postService = PostService(dioClient);
+  final uploadService = UploadService(dioClient);
 
   runApp(
     MultiProvider(
       providers: [
         Provider.value(value: dioClient),
+        Provider.value(value: authService),
+        Provider.value(value: postService),
+        Provider.value(value: uploadService),
+        Provider.value(value: socialService),
         ChangeNotifierProvider(
           create: (_) => AuthProvider(
             authService,
@@ -83,6 +95,9 @@ Future<void> main() async {
         ChangeNotifierProvider(
           create: (_) => WalletProvider(walletService),
         ),
+        ChangeNotifierProvider(
+          create: (_) => FeedProvider(feedService, socialService),
+        ),
       ],
       child: const MyApp(),
     ),
@@ -98,6 +113,10 @@ final GoRouter _router = GoRouter(
     ),
     GoRoute(
       path: '/',
+      builder: (context, state) => const FeedScreen(), // Now Feed is Home
+    ),
+    GoRoute(
+      path: '/videos',
       builder: (context, state) => const HomeScreen(),
     ),
     GoRoute(
@@ -156,6 +175,14 @@ final GoRouter _router = GoRouter(
     GoRoute(
       path: '/mentor-management',
       builder: (context, state) => const MentorManagementScreen(),
+    ),
+    GoRoute(
+      path: '/create-post',
+      builder: (context, state) => const CreatePostScreen(),
+    ),
+    GoRoute(
+      path: '/my-posts',
+      builder: (context, state) => const MyPostsScreen(),
     ),
   ],
 );
