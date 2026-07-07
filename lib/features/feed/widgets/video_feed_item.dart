@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../../../core/models/feed_item.dart';
 import '../../../core/providers/feed_provider.dart';
 import 'comment_bottom_sheet.dart';
+import 'related_videos_sheet.dart';
 
 class VideoFeedItem extends StatefulWidget {
   final FeedItem item;
@@ -20,6 +21,7 @@ class _VideoFeedItemState extends State<VideoFeedItem> {
   Timer? _viewTimer;
   int _secondsWatched = 0;
   bool _viewRecorded = false;
+  bool _completedRecorded = false;
 
   @override
   void initState() {
@@ -49,26 +51,34 @@ class _VideoFeedItemState extends State<VideoFeedItem> {
       if (_controller.value.isPlaying) {
         _secondsWatched++;
         if (_secondsWatched >= 3 && !_viewRecorded) {
-          _recordView();
+          _recordView(completed: false);
         }
+      }
+      if (_controller.value.position >= _controller.value.duration && _controller.value.duration > Duration.zero && !_completedRecorded) {
+        _recordView(completed: true);
       }
     });
   }
 
-  void _recordView() {
-    _viewRecorded = true;
+  void _recordView({required bool completed}) {
+    if (completed) {
+      _completedRecorded = true;
+    } else {
+      _viewRecorded = true;
+    }
+    
     context.read<FeedProvider>().recordView(
       widget.item.id,
       _secondsWatched,
-      _controller.value.position >= _controller.value.duration,
+      completed,
     );
   }
 
   @override
   void dispose() {
     _viewTimer?.cancel();
-    if (!_viewRecorded && _secondsWatched >= 3) {
-      _recordView();
+    if (!_viewRecorded && _secondsWatched >= 3 && !_completedRecorded) {
+      _recordView(completed: false);
     }
     _controller.dispose();
     super.dispose();
@@ -79,6 +89,9 @@ class _VideoFeedItemState extends State<VideoFeedItem> {
     return Stack(
       fit: StackFit.expand,
       children: [
+        // Thumbnail/Background
+        _buildThumbnail(),
+
         if (_isInitialized)
           GestureDetector(
             onTap: () {
@@ -97,14 +110,18 @@ class _VideoFeedItemState extends State<VideoFeedItem> {
                 child: VideoPlayer(_controller),
               ),
             ),
-          )
-        else
-          const Center(child: CircularProgressIndicator(color: Colors.white)),
+          ),
         
         // Pause Overlay
         if (_isInitialized && !_controller.value.isPlaying)
-          const Center(
-            child: Icon(Icons.play_arrow, size: 80, color: Colors.white54),
+          Center(
+            child: GestureDetector(
+              onTap: () {
+                _controller.play();
+                setState(() {});
+              },
+              child: const Icon(Icons.play_arrow, size: 80, color: Colors.white54),
+            ),
           ),
 
         // Right side actions
@@ -125,8 +142,13 @@ class _VideoFeedItemState extends State<VideoFeedItem> {
                 onTap: () => _showComments(context),
               ),
               _buildAction(
-                icon: Icons.share,
-                label: '${widget.item.stats.shares}',
+                icon: Icons.auto_awesome_motion, // Related videos icon
+                label: 'Related',
+                onTap: () => _showRelated(context),
+              ),
+              _buildAction(
+                icon: Icons.remove_red_eye_outlined,
+                label: '${widget.item.stats.views}',
                 onTap: () {},
               ),
             ],
@@ -141,9 +163,19 @@ class _VideoFeedItemState extends State<VideoFeedItem> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                '@${widget.item.author.name}',
-                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+              Row(
+                children: [
+                  Text(
+                    '@${widget.item.author.name}',
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+                  ),
+                  const SizedBox(width: 8),
+                  if (widget.item.viewerState.friendStatus != FriendStatus.SELF) ...[
+                    _buildFollowButton(),
+                    const SizedBox(width: 8),
+                    _buildFriendButton(),
+                  ],
+                ],
               ),
               const SizedBox(height: 8),
               Text(
@@ -163,6 +195,54 @@ class _VideoFeedItemState extends State<VideoFeedItem> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildThumbnail() {
+    String? thumbUrl;
+    if (widget.item.thumbnail?.source == ThumbnailSource.UPLOADED) {
+      thumbUrl = widget.item.thumbnail?.url;
+    }
+
+    if (thumbUrl != null) {
+      return Image.network(thumbUrl, fit: BoxFit.cover);
+    }
+    
+    // For VIDEO_FRAME, in a real app we'd use a package or a service to get the frame.
+    // For now we show a placeholder or the fallback if it was an image.
+    return Container(color: Colors.black);
+  }
+
+  Widget _buildFollowButton() {
+    final followed = widget.item.viewerState.followedAuthor;
+    return GestureDetector(
+      onTap: () => context.read<FeedProvider>().toggleFollow(widget.item.author.id),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+        decoration: BoxDecoration(
+          border: Border.all(color: Colors.white),
+          borderRadius: BorderRadius.circular(4),
+          color: followed ? Colors.transparent : Colors.white.withOpacity(0.2),
+        ),
+        child: Text(
+          followed ? 'Following' : 'Follow',
+          style: const TextStyle(color: Colors.white, fontSize: 12),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFriendButton() {
+    final status = widget.item.viewerState.friendStatus;
+    if (status == FriendStatus.FRIENDS) {
+      return const Icon(Icons.people, color: Colors.blue, size: 20);
+    }
+    return GestureDetector(
+      onTap: () {
+        context.read<FeedProvider>().sendFriendRequest(widget.item.author.id);
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Friend request sent')));
+      },
+      child: const Icon(Icons.person_add_outlined, color: Colors.white, size: 20),
     );
   }
 
@@ -187,6 +267,15 @@ class _VideoFeedItemState extends State<VideoFeedItem> {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) => CommentBottomSheet(videoId: widget.item.id),
+    );
+  }
+
+  void _showRelated(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => RelatedVideosSheet(videoId: widget.item.id),
     );
   }
 }

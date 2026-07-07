@@ -26,7 +26,17 @@ class PostFeedItem extends StatelessWidget {
                   children: [
                     CircleAvatar(child: Text(item.author.name[0])),
                     const SizedBox(width: 12),
-                    Text(item.author.name, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    Expanded(
+                      child: Text(
+                        item.author.name,
+                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                    if (item.viewerState.friendStatus != FriendStatus.SELF) ...[
+                      _buildFollowButton(context),
+                      const SizedBox(width: 8),
+                      _buildFriendButton(context),
+                    ],
                   ],
                 ),
                 const SizedBox(height: 24),
@@ -63,6 +73,39 @@ class PostFeedItem extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildFollowButton(BuildContext context) {
+    final followed = item.viewerState.followedAuthor;
+    return GestureDetector(
+      onTap: () => context.read<FeedProvider>().toggleFollow(item.author.id),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+        decoration: BoxDecoration(
+          border: Border.all(color: Colors.white),
+          borderRadius: BorderRadius.circular(4),
+          color: followed ? Colors.transparent : Colors.white.withOpacity(0.2),
+        ),
+        child: Text(
+          followed ? 'Following' : 'Follow',
+          style: const TextStyle(color: Colors.white, fontSize: 12),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFriendButton(BuildContext context) {
+    final status = item.viewerState.friendStatus;
+    if (status == FriendStatus.FRIENDS) {
+      return const Icon(Icons.people, color: Colors.blue, size: 20);
+    }
+    return GestureDetector(
+      onTap: () {
+        context.read<FeedProvider>().sendFriendRequest(item.author.id);
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Friend request sent')));
+      },
+      child: const Icon(Icons.person_add_outlined, color: Colors.white, size: 20),
     );
   }
 

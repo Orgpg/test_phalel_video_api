@@ -29,8 +29,11 @@ import 'features/bookings/my_bookings_screen.dart';
 import 'features/home/folder_videos_screen.dart';
 import 'features/home/home_screen.dart';
 import 'features/home/video_provider.dart';
-import 'features/mentors/mentor_detail_screen.dart';
+import 'features/main_navigation_screen.dart';
+import 'features/friends/friends_screen.dart';
+import 'features/friends/friend_requests_screen.dart';
 import 'features/mentors/mentor_list_screen.dart';
+import 'features/mentors/mentor_detail_screen.dart';
 import 'features/mentors/mentor_management_screen.dart';
 import 'features/profile/profile_screen.dart';
 import 'features/upload/upload_video_screen.dart';
@@ -113,7 +116,19 @@ final GoRouter _router = GoRouter(
     ),
     GoRoute(
       path: '/',
-      builder: (context, state) => const FeedScreen(), // Now Feed is Home
+      builder: (context, state) => const MainNavigationScreen(),
+    ),
+    GoRoute(
+      path: '/friends',
+      builder: (context, state) => const FriendsScreen(),
+    ),
+    GoRoute(
+      path: '/friend-requests',
+      builder: (context, state) => const FriendRequestsScreen(),
+    ),
+    GoRoute(
+      path: '/feed-old',
+      builder: (context, state) => const FeedScreen(),
     ),
     GoRoute(
       path: '/videos',

@@ -30,6 +30,8 @@ class _UploadVideoScreenState extends State<UploadVideoScreen> {
   String? _selectedCategory;
   List<String> _categories = [];
   String _accessType = 'FREE';
+  String _visibility = 'PUBLIC';
+  final List<String> _visibilityOptions = ['PUBLIC', 'FOLLOWERS_ONLY', 'FRIENDS_ONLY', 'PRIVATE'];
 
   bool _isUploading = false;
   bool _isLoadingData = true;
@@ -173,6 +175,7 @@ class _UploadVideoScreenState extends State<UploadVideoScreen> {
         description: _descriptionController.text,
         tags: _tagsController.text.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList(),
         accessType: _accessType,
+        visibility: _visibility,
       );
 
       if (mounted) context.read<VideoProvider>().loadVideos();
@@ -286,6 +289,13 @@ class _UploadVideoScreenState extends State<UploadVideoScreen> {
                   if (tags.isEmpty) return 'At least one tag required';
                   return null;
                 },
+              ),
+              const SizedBox(height: 16),
+              DropdownButtonFormField<String>(
+                value: _visibility,
+                decoration: const InputDecoration(labelText: 'Visibility', border: OutlineInputBorder()),
+                items: _visibilityOptions.map((v) => DropdownMenuItem(value: v, child: Text(v.replaceAll('_', ' ')))).toList(),
+                onChanged: _isUploading ? null : (v) => setState(() => _visibility = v!),
               ),
               const SizedBox(height: 24),
               ElevatedButton(

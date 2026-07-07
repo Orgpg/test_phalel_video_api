@@ -54,8 +54,7 @@ class UploadService {
     required int fileSize,
   }) async {
     try {
-      // Use public Dio instance with API_TOKEN as per "Single Video Upload Flow" requirements
-      final response = await _getPublicDio().post(
+      final response = await _dioClient.dio.post(
         '/api/mobile/uploads/presigned-url',
         data: {
           'assetType': assetType,
@@ -134,8 +133,7 @@ class UploadService {
     }
 
     try {
-      // Use public Dio instance with API_TOKEN as per "Single Video Upload Flow" requirements
-      final response = await _getPublicDio().post(
+      final response = await _dioClient.dio.post(
         '/api/mobile/uploads',
         data: data,
       );

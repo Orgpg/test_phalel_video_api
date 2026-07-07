@@ -33,16 +33,6 @@ class _FeedScreenState extends State<FeedScreen> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         title: const Text('Phalel Feed', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.add_box_outlined, color: Colors.white),
-            onPressed: () => _showUploadMenu(context),
-          ),
-          IconButton(
-            icon: const Icon(Icons.person_outline, color: Colors.white),
-            onPressed: () => context.push('/profile'),
-          ),
-        ],
       ),
       body: Consumer<FeedProvider>(
         builder: (context, provider, child) {
@@ -85,35 +75,6 @@ class _FeedScreenState extends State<FeedScreen> {
             },
           );
         },
-      ),
-    );
-  }
-
-  void _showUploadMenu(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.videocam),
-              title: const Text('Upload Video'),
-              onTap: () {
-                Navigator.pop(context);
-                context.push('/upload');
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.edit),
-              title: const Text('Create Post'),
-              onTap: () {
-                Navigator.pop(context);
-                context.push('/create-post');
-              },
-            ),
-          ],
-        ),
       ),
     );
   }

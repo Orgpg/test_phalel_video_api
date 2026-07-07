@@ -107,4 +107,64 @@ class FeedProvider with ChangeNotifier {
   Future<void> recordView(String videoId, int seconds, bool completed) async {
     await _feedService.recordView(videoId, watchSeconds: seconds, completed: completed);
   }
+
+  Future<void> toggleFollow(String userId) async {
+    final indexes = _items.asMap().entries
+        .where((e) => e.value.author.id == userId)
+        .map((e) => e.key)
+        .toList();
+
+    if (indexes.isEmpty) return;
+
+    final firstItem = _items[indexes.first];
+    final isFollowed = firstItem.viewerState.followedAuthor;
+
+    // Optimistic update for all items by this author
+    for (final i in indexes) {
+      final item = _items[i];
+      _items[i] = item.copyWith(
+        viewerState: ViewerState(
+          liked: item.viewerState.liked,
+          saved: item.viewerState.saved,
+          followedAuthor: !isFollowed,
+          friendStatus: item.viewerState.friendStatus,
+        ),
+      );
+    }
+    notifyListeners();
+
+    try {
+      if (isFollowed) {
+        await _socialService.unfollowUser(userId);
+      } else {
+        await _socialService.followUser(userId);
+      }
+    } catch (e) {
+      // Rollback
+      for (final i in indexes) {
+        final item = _items[i];
+        _items[i] = item.copyWith(
+          viewerState: ViewerState(
+            liked: item.viewerState.liked,
+            saved: item.viewerState.saved,
+            followedAuthor: isFollowed,
+            friendStatus: item.viewerState.friendStatus,
+          ),
+        );
+      }
+      notifyListeners();
+    }
+  }
+
+  Future<void> sendFriendRequest(String userId) async {
+    try {
+      await _socialService.sendFriendRequest(userId);
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  Future<List<FeedItem>> getRelatedVideos(String videoId) async {
+    return await _feedService.getRelatedVideos(videoId);
+  }
 }

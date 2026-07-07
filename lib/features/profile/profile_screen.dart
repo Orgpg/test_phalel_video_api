@@ -258,6 +258,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     _buildInfoTile('Role', user.preference?.role ?? 'Learner'),
                     
                     const Divider(height: 40),
+                    _buildSectionTitle('My Activity'),
+                    ListTile(
+                      leading: const Icon(Icons.article_outlined, color: Colors.deepPurple),
+                      title: const Text('My Posts'),
+                      subtitle: const Text('View your approved and pending posts'),
+                      trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                      onTap: () => context.push('/my-posts'),
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.people_outline, color: Colors.deepPurple),
+                      title: const Text('Friends'),
+                      subtitle: const Text('Manage your friends'),
+                      trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                      onTap: () {
+                        // Assuming MainNavigationScreen is used and we want to go to Friends tab
+                        // Or just push the FriendsScreen if we want it standalone
+                        context.push('/friends'); 
+                      },
+                    ),
+
+                    const Divider(height: 40),
                     _buildSectionTitle('Reset Password'),
                     _buildResetPasswordForm(),
                     

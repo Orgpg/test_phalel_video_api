@@ -10,17 +10,26 @@ class MyPostsScreen extends StatefulWidget {
   State<MyPostsScreen> createState() => _MyPostsScreenState();
 }
 
-class _MyPostsScreenState extends State<MyPostsScreen> {
+class _MyPostsScreenState extends State<MyPostsScreen> with SingleTickerProviderStateMixin {
+  late TabController _tabController;
   List<dynamic> _posts = [];
   bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(length: 4, vsync: this);
     _loadPosts();
   }
 
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
   Future<void> _loadPosts() async {
+    setState(() => _isLoading = true);
     try {
       final posts = await context.read<PostService>().getMyPosts();
       setState(() {
@@ -29,24 +38,53 @@ class _MyPostsScreenState extends State<MyPostsScreen> {
       });
     } catch (e) {
       debugPrint('Error loading posts: $e');
+      setState(() => _isLoading = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('My Submissions')),
+      appBar: AppBar(
+        title: const Text('My Submissions'),
+        bottom: TabBar(
+          controller: _tabController,
+          isScrollable: true,
+          tabs: const [
+            Tab(text: 'All'),
+            Tab(text: 'Pending'),
+            Tab(text: 'Approved'),
+            Tab(text: 'Rejected'),
+          ],
+        ),
+      ),
       body: _isLoading 
         ? const Center(child: CircularProgressIndicator())
-        : _posts.isEmpty
-          ? const Center(child: Text('No submissions yet'))
-          : ListView.builder(
-              itemCount: _posts.length,
-              itemBuilder: (context, index) {
-                final post = _posts[index];
-                return _buildPostItem(post);
-              },
-            ),
+        : TabBarView(
+            controller: _tabController,
+            children: [
+              _buildPostList(_posts),
+              _buildPostList(_posts.where((p) => p['status'] == 'PENDING').toList()),
+              _buildPostList(_posts.where((p) => p['status'] == 'APPROVED').toList()),
+              _buildPostList(_posts.where((p) => p['status'] == 'REJECTED').toList()),
+            ],
+          ),
+    );
+  }
+
+  Widget _buildPostList(List<dynamic> posts) {
+    if (posts.isEmpty) {
+      return const Center(child: Text('No submissions found'));
+    }
+    return RefreshIndicator(
+      onRefresh: _loadPosts,
+      child: ListView.builder(
+        itemCount: posts.length,
+        itemBuilder: (context, index) {
+          final post = posts[index];
+          return _buildPostItem(post);
+        },
+      ),
     );
   }
 
