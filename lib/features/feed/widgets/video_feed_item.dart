@@ -30,7 +30,13 @@ class _VideoFeedItemState extends State<VideoFeedItem> {
   }
 
   Future<void> _initializePlayer() async {
-    _controller = VideoPlayerController.networkUrl(Uri.parse(widget.item.videoUrl!));
+    final videoUrl = widget.item.videoUrl ?? widget.item.thumbnail?.fallbackVideoUrl;
+    if (videoUrl == null) {
+      debugPrint('No video URL found for item ${widget.item.id}');
+      return;
+    }
+
+    _controller = VideoPlayerController.networkUrl(Uri.parse(videoUrl));
     try {
       await _controller.initialize();
       _controller.setLooping(true);

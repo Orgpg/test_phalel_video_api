@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
-import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
-import 'widgets/folder_list.dart';
-import 'widgets/video_list.dart';
-import '../../core/models/video_model.dart';
-import 'video_provider.dart';
+import 'package:go_router/go_router.dart';
+import '../../core/providers/feed_provider.dart';
+import '../../core/models/feed_item.dart';
+import '../feed/widgets/video_feed_item.dart';
+import '../feed/widgets/post_feed_item.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -15,187 +14,112 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  bool _isSearching = false;
-  final TextEditingController _searchController = TextEditingController();
-  String _version = "v1.1.2";
+  final PageController _pageController = PageController();
 
   @override
   void initState() {
     super.initState();
-    _initPackageInfo();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<VideoProvider>().loadVideos();
+      context.read<FeedProvider>().fetchFeed(refresh: true);
     });
-  }
-
-  Future<void> _initPackageInfo() async {
-    try {
-      final info = await PackageInfo.fromPlatform();
-      setState(() {
-        _version = "v${info.version}";
-      });
-    } catch (e) {
-      debugPrint('Error getting package info: $e');
-    }
   }
 
   @override
   void dispose() {
-    _searchController.dispose();
+    _pageController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final isDesktop = MediaQuery.of(context).size.width > 900;
-
-    return DefaultTabController(
-      length: 4,
-      child: Scaffold(
-        appBar: AppBar(
-          title: _isSearching
-              ? TextField(
-                  controller: _searchController,
-                  autofocus: true,
-                  decoration: const InputDecoration(
-                    hintText: 'Search title, category, tags...',
-                    border: InputBorder.none,
-                    hintStyle: TextStyle(color: Colors.white70),
-                  ),
-                  style: const TextStyle(color: Colors.white),
-                  onChanged: (value) => setState(() {}),
-                )
-              : Row(
-                  children: [
-                    const Icon(Icons.play_circle_filled, color: Colors.white, size: 32),
-                    const SizedBox(width: 12),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Text(
-                          'PHALEL VIDEO',
-                          style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.2, fontSize: 18),
-                        ),
-                        Text(
-                          _version,
-                          style: const TextStyle(fontSize: 10, color: Colors.white70),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-          backgroundColor: Colors.deepPurple,
-          foregroundColor: Colors.white,
-          bottom: TabBar(
-            isScrollable: !isDesktop,
-            labelColor: Colors.white,
-            unselectedLabelColor: Colors.white70,
-            indicatorColor: Colors.white,
-            tabs: const [
-              Tab(text: 'Folders', icon: Icon(Icons.folder_copy)),
-              Tab(text: 'Single', icon: Icon(Icons.video_library)),
-              Tab(text: 'Free', icon: Icon(Icons.lock_open)),
-              Tab(text: 'Premium', icon: Icon(Icons.star)),
-            ],
+    return Scaffold(
+      backgroundColor: Colors.black,
+      extendBodyBehindAppBar: true,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        title: const Text(
+          'PHALEL VIDEO',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, letterSpacing: 1.2),
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.stars, color: Colors.amber),
+            onPressed: () => context.push('/wallet'),
           ),
-          actions: [
-            IconButton(
-              icon: Icon(_isSearching ? Icons.close : Icons.search),
-              onPressed: () {
-                setState(() {
-                  _isSearching = !_isSearching;
-                  if (!_isSearching) {
-                    _searchController.clear();
-                  }
-                });
+          IconButton(
+            icon: const Icon(Icons.school, color: Colors.white),
+            onPressed: () => context.push('/mentors'),
+          ),
+          IconButton(
+            icon: const Icon(Icons.account_circle, color: Colors.white),
+            onPressed: () => context.push('/profile'),
+          ),
+        ],
+      ),
+      body: Consumer<FeedProvider>(
+        builder: (context, provider, child) {
+          if (provider.state == FeedState.loading && provider.items.isEmpty) {
+            return const Center(child: CircularProgressIndicator(color: Colors.white));
+          }
+
+          if (provider.state == FeedState.error && provider.items.isEmpty) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.error_outline, color: Colors.red, size: 64),
+                  const SizedBox(height: 16),
+                  Text(provider.errorMessage, style: const TextStyle(color: Colors.white)),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: () => provider.fetchFeed(refresh: true),
+                    child: const Text('Retry'),
+                  ),
+                ],
+              ),
+            );
+          }
+
+          if (provider.items.isEmpty) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Text('No videos available', style: TextStyle(color: Colors.white)),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: () => provider.fetchFeed(refresh: true),
+                    child: const Text('Refresh'),
+                  ),
+                ],
+              ),
+            );
+          }
+
+          return RefreshIndicator(
+            onRefresh: () => provider.fetchFeed(refresh: true),
+            child: PageView.builder(
+              controller: _pageController,
+              scrollDirection: Axis.vertical,
+              onPageChanged: (index) {
+                if (index >= provider.items.length - 3 && provider.hasMore) {
+                  provider.fetchFeed();
+                }
+              },
+              itemCount: provider.items.length,
+              itemBuilder: (context, index) {
+                final item = provider.items[index];
+                if (item.type == FeedItemType.VIDEO) {
+                  return VideoFeedItem(item: item);
+                } else {
+                  return PostFeedItem(item: item);
+                }
               },
             ),
-            IconButton(
-              icon: const Icon(Icons.stars, color: Colors.amber),
-              onPressed: () => context.push('/wallet'),
-            ),
-            IconButton(
-              icon: const Icon(Icons.school),
-              onPressed: () => context.push('/mentors'),
-            ),
-            IconButton(
-              icon: const Icon(Icons.event_note),
-              onPressed: () => context.push('/my-bookings'),
-            ),
-            IconButton(
-              icon: const Icon(Icons.account_circle),
-              onPressed: () => context.push('/profile'),
-            ),
-          ],
-        ),
-        floatingActionButton: FloatingActionButton.extended(
-          onPressed: () => context.push('/upload'),
-          label: const Text('Upload Video'),
-          icon: const Icon(Icons.upload),
-          backgroundColor: Colors.deepPurple,
-          foregroundColor: Colors.white,
-        ),
-        body: Consumer<VideoProvider>(
-          builder: (context, provider, child) {
-            if (provider.state == VideoState.loading) {
-              return const Center(child: CircularProgressIndicator());
-            }
-
-            if (provider.state == VideoState.error) {
-              return Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.error_outline, color: Colors.red, size: 64),
-                      const SizedBox(height: 16),
-                      Text(
-                        'Error: ${provider.errorMessage}',
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(color: Colors.red),
-                      ),
-                      const SizedBox(height: 16),
-                      ElevatedButton(
-                        onPressed: provider.loadVideos,
-                        child: const Text('Retry'),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            }
-
-            final query = _searchController.text;
-            
-            return TabBarView(
-              children: [
-                const FolderList(),
-                _buildFilteredVideoList(provider.singleVideos, query, provider.loadVideos),
-                _buildFilteredVideoList(provider.freeVideos, query, provider.loadVideos),
-                _buildFilteredVideoList(provider.premiumVideos, query, provider.loadVideos),
-              ],
-            );
-          },
-        ),
+          );
+        },
       ),
     );
-  }
-
-  Widget _buildFilteredVideoList(List<VideoModel> videos, String query, Future<void> Function() onRefresh) {
-    if (query.isEmpty) {
-      return VideoList(videos: videos, onRefresh: onRefresh);
-    }
-    
-    final lowercaseQuery = query.toLowerCase();
-    final filteredVideos = videos.where((v) {
-      final titleMatch = v.displayName.toLowerCase().contains(lowercaseQuery);
-      final categoryMatch = v.category?.toLowerCase().contains(lowercaseQuery) ?? false;
-      final tagsMatch = v.tags.any((tag) => tag.toLowerCase().contains(lowercaseQuery));
-      return titleMatch || categoryMatch || tagsMatch;
-    }).toList();
-
-    return VideoList(videos: filteredVideos, onRefresh: onRefresh);
   }
 }
