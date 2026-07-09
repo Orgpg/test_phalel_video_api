@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:go_router/go_router.dart';
 import '../../core/providers/feed_provider.dart';
 import '../../core/models/feed_item.dart';
-import 'widgets/video_feed_item.dart';
 import 'widgets/post_feed_item.dart';
+import 'widgets/video_feed_tile.dart';
 
 class FeedScreen extends StatefulWidget {
   const FeedScreen({super.key});
@@ -15,6 +14,7 @@ class FeedScreen extends StatefulWidget {
 
 class _FeedScreenState extends State<FeedScreen> {
   final PageController _pageController = PageController();
+  int _activeIndex = 0;
 
   @override
   void initState() {
@@ -22,6 +22,12 @@ class _FeedScreenState extends State<FeedScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<FeedProvider>().fetchFeed(refresh: true);
     });
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
   }
 
   @override
@@ -56,23 +62,31 @@ class _FeedScreenState extends State<FeedScreen> {
             );
           }
 
-          return PageView.builder(
-            controller: _pageController,
-            scrollDirection: Axis.vertical,
-            onPageChanged: (index) {
-              if (index >= provider.items.length - 3 && provider.hasMore) {
-                provider.fetchFeed();
-              }
-            },
-            itemCount: provider.items.length,
-            itemBuilder: (context, index) {
-              final item = provider.items[index];
-              if (item.type == FeedItemType.VIDEO) {
-                return VideoFeedItem(item: item);
-              } else {
-                return PostFeedItem(item: item);
-              }
-            },
+          return RefreshIndicator(
+            onRefresh: () => provider.fetchFeed(refresh: true),
+            child: PageView.builder(
+              controller: _pageController,
+              scrollDirection: Axis.vertical,
+              onPageChanged: (index) {
+                setState(() => _activeIndex = index);
+                if (index >= provider.items.length - 2 && provider.hasMore) {
+                  provider.fetchFeed();
+                }
+              },
+              itemCount: provider.items.length,
+              itemBuilder: (context, index) {
+                final item = provider.items[index];
+                if (item.type == FeedItemType.VIDEO) {
+                  return VideoFeedTile(
+                    item: item,
+                    isActive: index == _activeIndex,
+                    preload: index == _activeIndex + 1,
+                  );
+                } else {
+                  return PostFeedItem(item: item);
+                }
+              },
+            ),
           );
         },
       ),

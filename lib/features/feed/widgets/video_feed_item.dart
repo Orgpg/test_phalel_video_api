@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../../../core/models/feed_item.dart';
 import '../../../core/providers/feed_provider.dart';
 import 'comment_bottom_sheet.dart';
@@ -18,6 +19,8 @@ class VideoFeedItem extends StatefulWidget {
 class _VideoFeedItemState extends State<VideoFeedItem> {
   late VideoPlayerController _controller;
   bool _isInitialized = false;
+  String? _errorMessage;
+  String? _playbackUrl;
   Timer? _viewTimer;
   int _secondsWatched = 0;
   bool _viewRecorded = false;
@@ -29,27 +32,92 @@ class _VideoFeedItemState extends State<VideoFeedItem> {
     _initializePlayer();
   }
 
+  String resolvePlaybackUrl(FeedItem item) {
+    final url = item.videoUrl;
+    final videoBase = dotenv.get('VIDEO_BASE_URL', fallback: '');
+
+    if (url != null && url.isNotEmpty && videoBase.isNotEmpty && url.startsWith(videoBase) && !url.contains('/api/uploads/') && !url.contains('/stream')) {
+      return url;
+    }
+
+    if (item.objectKey != null && item.objectKey!.isNotEmpty) {
+      final cleanKey = item.objectKey!.replaceFirst(RegExp(r'^/+'), '');
+      return '$videoBase/$cleanKey';
+    }
+
+    throw Exception('Missing valid videoUrl/objectKey for video ${item.id}');
+  }
+
   Future<void> _initializePlayer() async {
-    final videoUrl = widget.item.videoUrl ?? widget.item.thumbnail?.fallbackVideoUrl;
-    if (videoUrl == null) {
-      debugPrint('No video URL found for item ${widget.item.id}');
+    try {
+      _playbackUrl = resolvePlaybackUrl(widget.item);
+    } catch (e) {
+      debugPrint('Invalid playback URL for ${widget.item.id}: $e');
+      setState(() {
+        _errorMessage = 'Invalid playback URL from API.';
+      });
       return;
     }
 
-    _controller = VideoPlayerController.networkUrl(Uri.parse(videoUrl));
+    if (_playbackUrl!.contains('/api/uploads/') || _playbackUrl!.contains('/stream')) {
+      debugPrint('Refusing to play API stream URL: $_playbackUrl');
+      setState(() {
+        _errorMessage = 'Invalid playback URL from API.';
+      });
+      return;
+    }
+
+    _controller = VideoPlayerController.networkUrl(Uri.parse(_playbackUrl!));
     try {
       await _controller.initialize();
       _controller.setLooping(true);
       if (mounted) {
         setState(() {
           _isInitialized = true;
+          _errorMessage = null;
         });
         _controller.play();
         _startViewTimer();
       }
     } catch (e) {
       debugPrint('Error initializing video: $e');
+      final msg = e.toString();
+      if (msg.contains('401') || msg.contains('Response code: 401')) {
+        setState(() {
+          _errorMessage = 'Video URL is protected. Expected CDN URL. Playback: $_playbackUrl';
+        });
+      } else {
+        setState(() {
+          _errorMessage = 'Video failed to load.';
+        });
+      }
     }
+
+    _controller.addListener(() {
+      if (_controller.value.hasError) {
+        final desc = _controller.value.errorDescription ?? 'Unknown';
+        debugPrint('VideoPlayer error (${widget.item.id}): $desc');
+        if (desc.contains('401') || desc.contains('Response code: 401')) {
+          setState(() {
+            _errorMessage = 'Video URL is protected. Expected CDN URL. Playback: $_playbackUrl';
+          });
+        } else if (desc.contains('404')) {
+          setState(() {
+            _errorMessage = 'Video file not found.';
+          });
+        } else {
+          setState(() {
+            _errorMessage = 'Video playback error: $desc';
+          });
+        }
+      }
+
+      if (_controller.value.isInitialized && _controller.value.duration > Duration.zero) {
+        if (_controller.value.position >= _controller.value.duration && !_completedRecorded) {
+          _recordView(completed: true);
+        }
+      }
+    });
   }
 
   void _startViewTimer() {
@@ -97,6 +165,28 @@ class _VideoFeedItemState extends State<VideoFeedItem> {
       children: [
         // Thumbnail/Background
         _buildThumbnail(),
+
+        if (_errorMessage != null)
+          Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.error, color: Colors.red, size: 48),
+                const SizedBox(height: 8),
+                Text(_errorMessage!, style: const TextStyle(color: Colors.white)),
+                const SizedBox(height: 8),
+                ElevatedButton(
+                  onPressed: () {
+                    setState(() {
+                      _errorMessage = null;
+                    });
+                    _initializePlayer();
+                  },
+                  child: const Text('Retry'),
+                ),
+              ],
+            ),
+          ),
 
         if (_isInitialized)
           GestureDetector(

@@ -12,6 +12,7 @@ class FeedItem {
   final String? body;
   final String? videoUrl;
   final String? imageUrl;
+  final String? objectKey;
   final FeedThumbnail? thumbnail;
   final FeedAuthor author;
   final FeedStats stats;
@@ -26,6 +27,7 @@ class FeedItem {
     this.body,
     this.videoUrl,
     this.imageUrl,
+    this.objectKey,
     this.thumbnail,
     required this.author,
     required this.stats,
@@ -42,6 +44,7 @@ class FeedItem {
       body: json['body'],
       videoUrl: json['videoUrl'],
       imageUrl: json['imageUrl'],
+      objectKey: json['objectKey'] ?? json['object_key'],
       thumbnail: json['thumbnail'] != null ? FeedThumbnail.fromJson(json['thumbnail']) : null,
       author: FeedAuthor.fromJson(json['author'] ?? {}),
       stats: FeedStats.fromJson(json['stats'] ?? {}),
