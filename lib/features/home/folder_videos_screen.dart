@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../core/models/video_model.dart';
 import 'video_provider.dart';
 import 'widgets/video_list.dart';
 
@@ -51,22 +52,29 @@ class _FolderVideosScreenState extends State<FolderVideosScreen> {
       ),
       body: Consumer<VideoProvider>(
         builder: (context, provider, child) {
-          final allFolderVideos = provider.videosByFolder(widget.folderName);
-          final query = _searchController.text.toLowerCase();
-          
-          final filteredVideos = query.isEmpty 
-            ? allFolderVideos 
-            : allFolderVideos.where((v) {
-                return v.displayName.toLowerCase().contains(query) ||
-                    v.fileName.toLowerCase().contains(query) ||
-                    (v.author?.toLowerCase().contains(query) ?? false) ||
-                    (v.category?.toLowerCase().contains(query) ?? false) ||
-                    v.tags.any((tag) => tag.toLowerCase().contains(query));
-              }).toList();
+          return FutureBuilder<List<VideoModel>>(
+            future: provider.fetchVideosForFolder(widget.folderName),
+            builder: (context, snap) {
+              if (snap.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              final videos = snap.data ?? [];
+              final query = _searchController.text.toLowerCase();
+              final filtered = query.isEmpty
+                  ? videos
+                  : videos.where((v) {
+                      return v.displayName.toLowerCase().contains(query) ||
+                          v.fileName.toLowerCase().contains(query) ||
+                          (v.author?.toLowerCase().contains(query) ?? false) ||
+                          (v.category?.toLowerCase().contains(query) ?? false) ||
+                          v.tags.any((tag) => tag.toLowerCase().contains(query));
+                    }).toList();
 
-          return VideoList(
-            videos: filteredVideos,
-            onRefresh: provider.loadVideos,
+              return VideoList(
+                videos: filtered,
+                onRefresh: () async => await provider.fetchVideosForFolder(widget.folderName),
+              );
+            },
           );
         },
       ),

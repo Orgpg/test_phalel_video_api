@@ -63,29 +63,43 @@ class _FeedScreenState extends State<FeedScreen> {
           }
 
           return RefreshIndicator(
-            onRefresh: () => provider.fetchFeed(refresh: true),
+            onRefresh: () async {
+              await provider.fetchFeed(refresh: true);
+              setState(() {
+                _activeIndex = 0;
+              });
+              try {
+                _pageController.jumpToPage(0);
+              } catch (_) {}
+            },
             child: PageView.builder(
               controller: _pageController,
               scrollDirection: Axis.vertical,
               onPageChanged: (index) {
                 setState(() => _activeIndex = index);
-                if (index >= provider.items.length - 2 && provider.hasMore) {
-                  provider.fetchFeed();
+                if (provider.items.isNotEmpty && provider.hasMore) {
+                  final virtualIndex = index % provider.items.length;
+                  if (virtualIndex >= provider.items.length - 2) {
+                    provider.fetchFeed();
+                  }
                 }
               },
-              itemCount: provider.items.length,
+              // Use infinite builder when we've loaded all pages (loop mode)
+              itemCount: provider.items.isEmpty ? 0 : (provider.hasMore ? provider.items.length : null),
               itemBuilder: (context, index) {
-                final item = provider.items[index];
-                if (item.type == FeedItemType.VIDEO) {
+                final displayedItem = provider.items[index % provider.items.length];
+                if (displayedItem.type == FeedItemType.VIDEO) {
                   return VideoFeedTile(
-                    item: item,
-                    isActive: index == _activeIndex,
-                    preload: index == _activeIndex + 1,
+                    key: ValueKey(displayedItem.id),
+                    item: displayedItem,
+                    isActive: (index % provider.items.length) == (_activeIndex % provider.items.length),
+                    preload: (index % provider.items.length) == ((_activeIndex + 1) % provider.items.length),
                   );
                 } else {
-                  return PostFeedItem(item: item);
+                  return PostFeedItem(key: ValueKey(displayedItem.id), item: displayedItem);
                 }
               },
+
             ),
           );
         },

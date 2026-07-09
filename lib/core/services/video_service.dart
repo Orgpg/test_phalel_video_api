@@ -8,14 +8,15 @@ class VideoService {
 
   VideoService(this._dioClient);
 
-  Future<List<VideoModel>> fetchVideos({String? folder, String? accessType, bool? singleVideoOnly}) async {
+  Future<List<VideoModel>> fetchVideos({String? folder, String? accessType, bool? singleVideoOnly, int limit = 50, String? cursor}) async {
     try {
       final response = await _dioClient.dio.get(
         '/api/mobile/feed',
         queryParameters: {
-          'limit': 50,
-          // We can't easily filter by folder/accessType on /feed unless the backend supports it
-          // But as per instructions, we replace old calls with /feed
+          'limit': limit,
+          if (cursor != null) 'cursor': cursor,
+          if (folder != null) 'folder': folder,
+          if (singleVideoOnly != null) 'singleVideoOnly': singleVideoOnly,
         },
       );
       
@@ -31,6 +32,7 @@ class VideoService {
                   'videoUrl': json['videoUrl'],
                   'thumbnailUrl': json['thumbnail']?['url'],
                   'author': json['author']?['name'],
+                  'folder': json['folder'],
                   // Mapping other fields if possible
                 }))
             .toList();

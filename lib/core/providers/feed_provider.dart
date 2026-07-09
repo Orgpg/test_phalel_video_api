@@ -22,7 +22,7 @@ class FeedProvider with ChangeNotifier {
   String get errorMessage => _errorMessage;
   bool get hasMore => _hasMore;
 
-  Future<void> fetchFeed({bool refresh = false}) async {
+  Future<void> fetchFeed({bool refresh = false, String? folder, bool? singleVideoOnly}) async {
     if (refresh) {
       _nextCursor = null;
       _hasMore = true;
@@ -37,7 +37,7 @@ class FeedProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      final response = await _feedService.getFeed(cursor: _nextCursor);
+      final response = await _feedService.getFeed(cursor: _nextCursor, folder: folder, singleVideoOnly: singleVideoOnly);
       _items.addAll(response.items);
       _nextCursor = response.nextCursor;
       _hasMore = response.hasMore;

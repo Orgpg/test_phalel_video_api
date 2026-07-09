@@ -67,7 +67,7 @@ class VideoModel {
   bool get isFree => accessType == "FREE";
   bool get isPremium => accessType == "PREMIUM";
 
-  String get normalizedFolder => (folder == null || folder!.trim().isEmpty) ? 'General' : folder!.trim();
+  String get normalizedFolder => (folder == null || folder!.trim().isEmpty) ? 'Single Videos' : folder!.trim();
 
   String get videoUrl {
     if (videoUrlOverride != null && videoUrlOverride!.isNotEmpty) return videoUrlOverride!;

@@ -98,22 +98,30 @@ class _HomeScreenState extends State<HomeScreen> {
           }
 
           return RefreshIndicator(
-            onRefresh: () => provider.fetchFeed(refresh: true),
+            onRefresh: () async {
+              await provider.fetchFeed(refresh: true);
+              try {
+                _pageController.jumpToPage(0);
+              } catch (_) {}
+            },
             child: PageView.builder(
               controller: _pageController,
               scrollDirection: Axis.vertical,
               onPageChanged: (index) {
-                if (index >= provider.items.length - 3 && provider.hasMore) {
-                  provider.fetchFeed();
+                if (provider.items.isNotEmpty && provider.hasMore) {
+                  final virtualIndex = index % provider.items.length;
+                  if (virtualIndex >= provider.items.length - 3) {
+                    provider.fetchFeed();
+                  }
                 }
               },
-              itemCount: provider.items.length,
+              itemCount: provider.items.isEmpty ? 0 : (provider.hasMore ? provider.items.length : null),
               itemBuilder: (context, index) {
-                final item = provider.items[index];
-                if (item.type == FeedItemType.VIDEO) {
-                  return VideoFeedItem(item: item);
+                final displayedItem = provider.items[index % provider.items.length];
+                if (displayedItem.type == FeedItemType.VIDEO) {
+                  return VideoFeedItem(key: ValueKey(displayedItem.id), item: displayedItem);
                 } else {
-                  return PostFeedItem(item: item);
+                  return PostFeedItem(key: ValueKey(displayedItem.id), item: displayedItem);
                 }
               },
             ),

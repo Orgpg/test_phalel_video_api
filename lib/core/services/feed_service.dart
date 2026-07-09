@@ -8,13 +8,15 @@ class FeedService {
 
   FeedService(this._dioClient);
 
-  Future<FeedResponse> getFeed({int limit = 10, String? cursor}) async {
+  Future<FeedResponse> getFeed({int limit = 10, String? cursor, String? folder, bool? singleVideoOnly}) async {
     try {
       final response = await _dioClient.dio.get(
         '/api/mobile/feed',
         queryParameters: {
           'limit': limit,
           if (cursor != null) 'cursor': cursor,
+          if (folder != null) 'folder': folder,
+          if (singleVideoOnly != null) 'singleVideoOnly': singleVideoOnly,
         },
       );
 

@@ -38,10 +38,20 @@ class VideoProvider with ChangeNotifier {
   }
 
   List<VideoModel> videosByFolder(String folderName) {
+    // Prefer server-provided folder field. Keep this for fallback but avoid objectKey parsing.
     return _allVideos.where((v) {
       final vFolder = (v.folder == null || v.folder!.trim().isEmpty) ? 'General' : v.folder!.trim();
       return vFolder.toLowerCase() == folderName.trim().toLowerCase();
     }).toList();
+  }
+
+  Future<List<VideoModel>> fetchVideosForFolder(String folderName, {int limit = 50}) async {
+    try {
+      final results = await _service.fetchVideos(folder: folderName, limit: limit);
+      return results;
+    } catch (e) {
+      return [];
+    }
   }
 
   Future<void> loadVideos() async {
