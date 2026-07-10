@@ -53,26 +53,42 @@ class _UploadVideoScreenState extends State<UploadVideoScreen> {
 
   Future<void> _loadInitialData() async {
     try {
-      final service = UploadService(context.read<DioClient>());
-      final categories = await service.fetchCategories();
+      final dioClient = context.read<DioClient>();
+      final service = UploadService(dioClient);
       
-      // Auto-fill author from logged-in user if available
-      final authProvider = context.read<AuthProvider>();
-      final userName = authProvider.user?.name ?? authProvider.user?.username ?? '';
-      if (userName.isNotEmpty) {
-        _authorController.text = userName;
+      final categoriesResult = await service.fetchCategories();
+      
+      String authorName = '';
+      try {
+        final authProvider = context.read<AuthProvider>();
+        if (authProvider.user != null) {
+          authorName = authProvider.user!.name.isNotEmpty 
+            ? authProvider.user!.name 
+            : authProvider.user!.username;
+        }
+      } catch (_) {
+        // Continue without auto-filled author
       }
 
-      setState(() {
-        _categories = categories;
-        if (_categories.isNotEmpty) _selectedCategory = _categories.first;
-        _isLoadingData = false;
-      });
+      if (mounted) {
+        setState(() {
+          _categories = categoriesResult;
+          if (_categories.isNotEmpty && _selectedCategory == null) {
+            _selectedCategory = _categories.first;
+          }
+          if (authorName.isNotEmpty) {
+            _authorController.text = authorName;
+          }
+          _isLoadingData = false;
+        });
+      }
     } catch (e) {
       debugPrint('Error loading initial data: $e');
-      setState(() {
-        _isLoadingData = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoadingData = false;
+        });
+      }
     }
   }
 
@@ -246,14 +262,15 @@ class _UploadVideoScreenState extends State<UploadVideoScreen> {
               const SizedBox(height: 16),
               if (_categories.isNotEmpty)
                 DropdownButtonFormField<String>(
-                  value: _selectedCategory,
+                  value: _selectedCategory ?? _categories.first,
                   decoration: const InputDecoration(labelText: 'Category', border: OutlineInputBorder()),
                   items: _categories.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
                   onChanged: _isUploading ? null : (v) => setState(() => _selectedCategory = v),
-                  validator: (v) => v == null ? 'Category is required' : null,
+                  validator: (v) => v == null || v.isEmpty ? 'Category is required' : null,
                 )
               else
                 TextFormField(
+                  initialValue: _selectedCategory,
                   onChanged: (v) => _selectedCategory = v,
                   decoration: const InputDecoration(labelText: 'Category', border: OutlineInputBorder()),
                   validator: (v) => (v == null || v.isEmpty) ? 'Category is required' : null,
