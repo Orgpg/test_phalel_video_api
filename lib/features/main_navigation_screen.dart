@@ -65,6 +65,20 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      appBar: _selectedIndex == 0 
+        ? AppBar(
+            title: const Text('Phalel'),
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.videocam),
+                onPressed: () {
+                  context.push('/upload');
+                },
+                tooltip: 'Upload Video',
+              ),
+            ],
+          )
+        : null,
       body: IndexedStack(
         index: _selectedIndex,
         children: _screens,

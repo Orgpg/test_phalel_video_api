@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../core/providers/feed_provider.dart';
 import '../../core/models/feed_item.dart';
@@ -39,6 +40,14 @@ class _FeedScreenState extends State<FeedScreen> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         title: const Text('Phalel Feed', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          context.push('/upload');
+        },
+        tooltip: 'Upload Video',
+        backgroundColor: Colors.deepPurple,
+        child: const Icon(Icons.videocam),
       ),
       body: Consumer<FeedProvider>(
         builder: (context, provider, child) {
