@@ -4,6 +4,7 @@ import 'package:mime/mime.dart';
 import 'package:provider/provider.dart';
 import '../../core/services/upload_service.dart';
 import '../../core/network/dio_client.dart';
+import '../../core/providers/auth_provider.dart';
 import '../home/video_provider.dart';
 
 class UploadVideoScreen extends StatefulWidget {
@@ -24,9 +25,6 @@ class _UploadVideoScreenState extends State<UploadVideoScreen> {
   final _descriptionController = TextEditingController();
   final _tagsController = TextEditingController();
   
-  bool _isSingleVideo = false;
-  String? _selectedFolder;
-  List<String> _folders = ['General'];
   String? _selectedCategory;
   List<String> _categories = [];
   String _accessType = 'FREE';
@@ -56,23 +54,23 @@ class _UploadVideoScreenState extends State<UploadVideoScreen> {
   Future<void> _loadInitialData() async {
     try {
       final service = UploadService(context.read<DioClient>());
-      final results = await Future.wait([
-        service.fetchFolders(),
-        service.fetchCategories(),
-      ]);
+      final categories = await service.fetchCategories();
+      
+      // Auto-fill author from logged-in user if available
+      final authProvider = context.read<AuthProvider>();
+      final userName = authProvider.user?.name ?? authProvider.user?.username ?? '';
+      if (userName.isNotEmpty) {
+        _authorController.text = userName;
+      }
 
       setState(() {
-        _folders = results[0].isNotEmpty ? results[0] : ['General'];
-        _selectedFolder = _folders.contains('General') ? 'General' : _folders.first;
-        _categories = results[1];
+        _categories = categories;
         if (_categories.isNotEmpty) _selectedCategory = _categories.first;
         _isLoadingData = false;
       });
     } catch (e) {
       debugPrint('Error loading initial data: $e');
       setState(() {
-        _folders = ['General'];
-        _selectedFolder = 'General';
         _isLoadingData = false;
       });
     }
@@ -97,25 +95,23 @@ class _UploadVideoScreenState extends State<UploadVideoScreen> {
 
   Future<void> _startUpload() async {
     if (!_formKey.currentState!.validate() || _videoFile == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please select a video file and fill required fields')));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please select a video file and fill all required fields')));
       return;
     }
 
     setState(() {
       _isUploading = true;
       _uploadProgress = 0;
-      _statusMessage = 'Starting upload...';
+      _statusMessage = 'Preparing upload...';
     });
 
     try {
       final service = UploadService(context.read<DioClient>());
       final videoMime = lookupMimeType(_videoFile!.name) ?? 'video/mp4';
 
-      setState(() => _statusMessage = 'Requesting video upload URL...');
+      setState(() => _statusMessage = 'Uploading video...');
       final videoInfo = await service.getPresignedUrl(
         assetType: 'video', 
-        folder: _isSingleVideo ? null : (_selectedFolder ?? 'General'), 
-        singleVideoOnly: _isSingleVideo ? true : null,
         fileName: _videoFile!.name, 
         fileType: videoMime, 
         fileSize: _videoFile!.size,
@@ -126,7 +122,6 @@ class _UploadVideoScreenState extends State<UploadVideoScreen> {
 
       if (videoUrl == null || videoKey == null) throw Exception('Failed to get video upload URL');
 
-      setState(() => _statusMessage = 'Uploading video file...');
       await service.uploadBytes(url: videoUrl, bytes: _videoFile!.bytes!, contentType: videoMime, onProgress: (sent, total) {
         setState(() => _uploadProgress = sent / total * 0.7);
       });
@@ -135,12 +130,10 @@ class _UploadVideoScreenState extends State<UploadVideoScreen> {
       String? thumbMime;
 
       if (_thumbnailFile != null) {
-        setState(() => _statusMessage = 'Requesting thumbnail upload URL...');
+        setState(() => _statusMessage = 'Uploading thumbnail...');
         thumbMime = lookupMimeType(_thumbnailFile!.name) ?? 'image/jpeg';
         final thumbInfo = await service.getPresignedUrl(
           assetType: 'thumbnail', 
-          folder: _isSingleVideo ? null : (_selectedFolder ?? 'General'), 
-          singleVideoOnly: _isSingleVideo ? true : null,
           fileName: _thumbnailFile!.name, 
           fileType: thumbMime, 
           fileSize: _thumbnailFile!.size,
@@ -149,7 +142,6 @@ class _UploadVideoScreenState extends State<UploadVideoScreen> {
         final String? tKey = thumbInfo['r2ObjectKey'] ?? thumbInfo['objectKey'];
 
         if (tUrl != null && tKey != null) {
-          setState(() => _statusMessage = 'Uploading thumbnail...');
           await service.uploadBytes(url: tUrl, bytes: _thumbnailFile!.bytes!, contentType: thumbMime, onProgress: (sent, total) {
             setState(() => _uploadProgress = 0.7 + (sent / total * 0.2));
           });
@@ -157,11 +149,9 @@ class _UploadVideoScreenState extends State<UploadVideoScreen> {
         }
       }
 
-      setState(() => _statusMessage = 'Submitting metadata...');
+      setState(() => _statusMessage = 'Saving metadata...');
       await service.submitMetadata(
         fileName: _videoFile!.name,
-        folder: _isSingleVideo ? null : (_selectedFolder ?? 'General'),
-        singleVideoOnly: _isSingleVideo ? true : null,
         fileSize: _videoFile!.size,
         fileType: videoMime,
         objectKey: videoKey,
@@ -183,7 +173,7 @@ class _UploadVideoScreenState extends State<UploadVideoScreen> {
       setState(() {
         _isUploading = false;
         _uploadProgress = 1.0;
-        _statusMessage = 'Video submitted successfully';
+        _statusMessage = 'Video submitted for review';
       });
 
       if (mounted) {
@@ -191,7 +181,7 @@ class _UploadVideoScreenState extends State<UploadVideoScreen> {
           context: context,
           builder: (context) => AlertDialog(
             title: const Text('Success'),
-            content: const Text('Video submitted for review.'),
+            content: const Text('Your video has been submitted for admin review.'),
             actions: [TextButton(onPressed: () { Navigator.pop(context); Navigator.pop(context); }, child: const Text('OK'))],
           ),
         );
@@ -235,24 +225,24 @@ class _UploadVideoScreenState extends State<UploadVideoScreen> {
                 shape: RoundedRectangleBorder(side: BorderSide(color: Colors.grey.shade300), borderRadius: BorderRadius.circular(8)),
               ),
               const SizedBox(height: 16),
-              SwitchListTile(
-                title: const Text('Single Video (No Folder)'),
-                value: _isSingleVideo, 
-                onChanged: _isUploading ? null : (v) => setState(() => _isSingleVideo = v),
+              TextFormField(
+                controller: _displayNameController,
+                decoration: const InputDecoration(labelText: 'Title', border: OutlineInputBorder()),
+                validator: (v) => (v == null || v.isEmpty) ? 'Title is required' : null,
               ),
-              if (!_isSingleVideo) ...[
-                const SizedBox(height: 16),
-                DropdownButtonFormField<String>(
-                  value: _selectedFolder,
-                  decoration: const InputDecoration(labelText: 'Folder', border: OutlineInputBorder()),
-                  items: _folders.map((f) => DropdownMenuItem(value: f, child: Text(f))).toList(),
-                  onChanged: _isUploading ? null : (v) => setState(() => _selectedFolder = v),
-                ),
-              ],
               const SizedBox(height: 16),
-              TextFormField(controller: _displayNameController, decoration: const InputDecoration(labelText: 'Display Name', border: OutlineInputBorder()), validator: (v) => v!.isEmpty ? 'Required' : null),
+              TextFormField(
+                controller: _authorController,
+                decoration: const InputDecoration(labelText: 'Author', border: OutlineInputBorder()),
+                validator: (v) => (v == null || v.isEmpty) ? 'Author is required' : null,
+              ),
               const SizedBox(height: 16),
-              TextFormField(controller: _authorController, decoration: const InputDecoration(labelText: 'Author', border: OutlineInputBorder()), validator: (v) => v!.isEmpty ? 'Required' : null),
+              TextFormField(
+                controller: _descriptionController,
+                decoration: const InputDecoration(labelText: 'Description', border: OutlineInputBorder()),
+                maxLines: 3,
+                validator: (v) => (v == null || v.isEmpty) ? 'Description is required' : null,
+              ),
               const SizedBox(height: 16),
               if (_categories.isNotEmpty)
                 DropdownButtonFormField<String>(
@@ -264,17 +254,10 @@ class _UploadVideoScreenState extends State<UploadVideoScreen> {
                 )
               else
                 TextFormField(
-                  onChanged: (v) => _selectedCategory = v, 
+                  onChanged: (v) => _selectedCategory = v,
                   decoration: const InputDecoration(labelText: 'Category', border: OutlineInputBorder()),
                   validator: (v) => (v == null || v.isEmpty) ? 'Category is required' : null,
                 ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _descriptionController,
-                decoration: const InputDecoration(labelText: 'Description', border: OutlineInputBorder()),
-                maxLines: 3,
-                validator: (v) => (v == null || v.isEmpty) ? 'Description is required' : null,
-              ),
               const SizedBox(height: 16),
               TextFormField(
                 controller: _tagsController,
@@ -284,9 +267,9 @@ class _UploadVideoScreenState extends State<UploadVideoScreen> {
                   border: OutlineInputBorder()
                 ),
                 validator: (v) {
-                  if (v == null || v.isEmpty) return 'At least one tag required';
+                  if (v == null || v.isEmpty) return 'At least one tag is required';
                   final tags = v.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
-                  if (tags.isEmpty) return 'At least one tag required';
+                  if (tags.isEmpty) return 'At least one tag is required';
                   return null;
                 },
               ),
@@ -310,3 +293,4 @@ class _UploadVideoScreenState extends State<UploadVideoScreen> {
     );
   }
 }
+
