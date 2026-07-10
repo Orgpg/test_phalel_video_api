@@ -67,7 +67,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     return Scaffold(
       appBar: _selectedIndex == 0 
         ? AppBar(
-            title: const Text('Phalel'),
+            title: const Text('Testing Video API'),
             actions: [
               IconButton(
                 icon: const Icon(Icons.videocam),

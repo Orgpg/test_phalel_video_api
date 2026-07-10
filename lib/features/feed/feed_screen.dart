@@ -39,7 +39,7 @@ class _FeedScreenState extends State<FeedScreen> {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        title: const Text('Phalel Feed', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        title: const Text('Testing Video API Feed', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {

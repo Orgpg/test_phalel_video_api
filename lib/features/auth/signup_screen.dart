@@ -65,7 +65,7 @@ class _SignupScreenState extends State<SignupScreen> {
                 const Icon(Icons.person_add, size: 80, color: Colors.deepPurple),
                 const SizedBox(height: 32),
                 Text(
-                  'Join Phalel',
+                  'Join Testing Video API',
                   style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                         fontWeight: FontWeight.bold,
                         color: Colors.deepPurple,

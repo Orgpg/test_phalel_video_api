@@ -79,7 +79,7 @@ class _HomeScreenState extends State<HomeScreen> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         title: const Text(
-          'PHALEL VIDEO',
+          'Testing Video API',
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, letterSpacing: 1.2),
         ),
         actions: [

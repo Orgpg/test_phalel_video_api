@@ -208,7 +208,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp.router(
-      title: 'PhaLel Video',
+      title: 'Testing Video API',
       debugShowCheckedModeBanner: false,
       routerConfig: _router,
       theme: ThemeData(
