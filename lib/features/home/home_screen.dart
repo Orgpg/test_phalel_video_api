@@ -30,6 +30,46 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
+  void _showCreateMenu(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.grey[900],
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 8),
+            Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey[600], borderRadius: BorderRadius.circular(2))),
+            const SizedBox(height: 16),
+            ListTile(
+              leading: const CircleAvatar(backgroundColor: Colors.deepPurple, child: Icon(Icons.videocam, color: Colors.white)),
+              title: const Text('Upload Video', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              subtitle: const Text('Share a video with the community', style: TextStyle(color: Colors.white70, fontSize: 12)),
+              onTap: () {
+                Navigator.pop(context);
+                context.push('/upload');
+              },
+            ),
+            const Divider(color: Colors.white10),
+            ListTile(
+              leading: const CircleAvatar(backgroundColor: Colors.blue, child: Icon(Icons.edit, color: Colors.white)),
+              title: const Text('Create Post', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              subtitle: const Text('Share your thoughts or an image', style: TextStyle(color: Colors.white70, fontSize: 12)),
+              onTap: () {
+                Navigator.pop(context);
+                context.push('/create-post');
+              },
+            ),
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -44,6 +84,10 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         actions: [
           IconButton(
+            icon: const Icon(Icons.add_box_outlined, color: Colors.white, size: 28),
+            onPressed: () => _showCreateMenu(context),
+          ),
+          IconButton(
             icon: const Icon(Icons.stars, color: Colors.amber),
             onPressed: () => context.push('/wallet'),
           ),
@@ -56,6 +100,12 @@ class _HomeScreenState extends State<HomeScreen> {
             onPressed: () => context.push('/profile'),
           ),
         ],
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => _showCreateMenu(context),
+        backgroundColor: Colors.deepPurple,
+        foregroundColor: Colors.white,
+        child: const Icon(Icons.add, size: 32),
       ),
       body: Consumer<FeedProvider>(
         builder: (context, provider, child) {
