@@ -30,6 +30,8 @@ class UploadService {
 
   Future<Map<String, dynamic>> getPresignedUrl({
     required String assetType,
+    String? folder,
+    bool? singleVideoOnly,
     required String fileName,
     required String fileType,
     required int fileSize,
@@ -39,7 +41,8 @@ class UploadService {
         '/api/mobile/uploads/presigned-url',
         data: {
           'assetType': assetType,
-          'singleVideoOnly': true,
+          if (folder != null) 'folder': folder,
+          if (singleVideoOnly != null) 'singleVideoOnly': singleVideoOnly,
           'fileName': fileName,
           'fileType': fileType,
           'fileSize': fileSize,
@@ -72,6 +75,8 @@ class UploadService {
 
   Future<Map<String, dynamic>> submitMetadata({
     required String fileName,
+    String? folder,
+    bool? singleVideoOnly,
     required int fileSize,
     required String fileType,
     required String objectKey,
@@ -89,7 +94,8 @@ class UploadService {
   }) async {
     final Map<String, dynamic> data = {
       'fileName': fileName,
-      'singleVideoOnly': true,
+      if (folder != null) 'folder': folder,
+      if (singleVideoOnly != null) 'singleVideoOnly': singleVideoOnly,
       'fileSize': fileSize,
       'fileType': fileType,
       'objectKey': objectKey,

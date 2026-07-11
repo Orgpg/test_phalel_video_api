@@ -1,7 +1,10 @@
+import 'dart:io';
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:mime/mime.dart';
 import 'package:provider/provider.dart';
+import 'package:video_player/video_player.dart';
 import '../../core/services/upload_service.dart';
 import '../../core/network/dio_client.dart';
 import '../../core/providers/auth_provider.dart';
@@ -25,6 +28,9 @@ class _UploadVideoScreenState extends State<UploadVideoScreen> {
   final _descriptionController = TextEditingController();
   final _tagsController = TextEditingController();
   
+  bool _isSingleVideo = true;
+  String? _selectedFolder;
+  List<String> _folders = ['General'];
   String? _selectedCategory;
   List<String> _categories = [];
   String _accessType = 'FREE';
@@ -35,6 +41,10 @@ class _UploadVideoScreenState extends State<UploadVideoScreen> {
   bool _isLoadingData = true;
   double _uploadProgress = 0;
   String _statusMessage = '';
+  
+  int? _videoDurationSeconds;
+  bool _isDurationValid = true;
+  String? _durationError;
 
   @override
   void initState() {
@@ -56,7 +66,10 @@ class _UploadVideoScreenState extends State<UploadVideoScreen> {
       final dioClient = context.read<DioClient>();
       final service = UploadService(dioClient);
       
-      final categoriesResult = await service.fetchCategories();
+      final results = await Future.wait([
+        service.fetchFolders(),
+        service.fetchCategories(),
+      ]);
       
       String authorName = '';
       try {
@@ -66,41 +79,85 @@ class _UploadVideoScreenState extends State<UploadVideoScreen> {
             ? authProvider.user!.name 
             : authProvider.user!.username;
         }
-      } catch (_) {
-        // Continue without auto-filled author
-      }
+      } catch (_) {}
 
       if (mounted) {
         setState(() {
-          _categories = categoriesResult;
-          if (_categories.isNotEmpty && _selectedCategory == null) {
-            _selectedCategory = _categories.first;
-          }
-          if (authorName.isNotEmpty) {
-            _authorController.text = authorName;
-          }
+          _folders = results[0].isNotEmpty ? results[0] : ['General'];
+          _selectedFolder = _folders.contains('General') ? 'General' : _folders.first;
+          _categories = results[1];
+          if (_categories.isNotEmpty) _selectedCategory = _categories.first;
+          if (authorName.isNotEmpty) _authorController.text = authorName;
           _isLoadingData = false;
         });
       }
     } catch (e) {
       debugPrint('Error loading initial data: $e');
-      if (mounted) {
-        setState(() {
-          _isLoadingData = false;
-        });
-      }
+      if (mounted) setState(() => _isLoadingData = false);
     }
   }
 
   Future<void> _pickVideo() async {
     final result = await FilePicker.platform.pickFiles(type: FileType.video, withData: true);
     if (result != null) {
+      final file = result.files.first;
       setState(() {
-        _videoFile = result.files.first;
-        if (_displayNameController.text.isEmpty) {
-          _displayNameController.text = _videoFile!.name.split('.').first;
-        }
+        _videoFile = file;
+        _statusMessage = 'Checking video duration...';
       });
+      await _checkVideoDuration(file);
+      if (_displayNameController.text.isEmpty) {
+        _displayNameController.text = file.name.split('.').first;
+      }
+    }
+  }
+
+  Future<void> _checkVideoDuration(PlatformFile file) async {
+    VideoPlayerController? controller;
+    try {
+      if (kIsWeb) {
+        // On web we use the bytes as a blob URL or just use the data
+        // video_player on web supports networkUrl from blob
+      } else {
+        controller = VideoPlayerController.file(File(file.path!));
+      }
+
+      if (controller != null) {
+        await controller.initialize();
+        final duration = controller.value.duration.inSeconds;
+        setState(() {
+          _videoDurationSeconds = duration;
+          _validateDuration();
+        });
+        await controller.dispose();
+      } else {
+        // Fallback or skip duration check if platform not supported easily here
+        setState(() {
+          _videoDurationSeconds = 0;
+          _isDurationValid = true;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error checking duration: $e');
+      setState(() {
+        _videoDurationSeconds = null;
+        _isDurationValid = true; // Assume valid if check fails to not block user
+      });
+    }
+  }
+
+  void _validateDuration() {
+    if (_videoDurationSeconds == null) return;
+    
+    final maxSeconds = _isSingleVideo ? 60 : 420;
+    if (_videoDurationSeconds! > maxSeconds) {
+      _isDurationValid = false;
+      _durationError = _isSingleVideo 
+          ? "Single videos must be 1 minute or shorter."
+          : "Folder videos must be 7 minutes or shorter.";
+    } else {
+      _isDurationValid = true;
+      _durationError = null;
     }
   }
 
@@ -110,24 +167,29 @@ class _UploadVideoScreenState extends State<UploadVideoScreen> {
   }
 
   Future<void> _startUpload() async {
+    _validateDuration();
+    if (!_isDurationValid) return;
+
     if (!_formKey.currentState!.validate() || _videoFile == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please select a video file and fill all required fields')));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please select a video file and fill required fields')));
       return;
     }
 
     setState(() {
       _isUploading = true;
       _uploadProgress = 0;
-      _statusMessage = 'Preparing upload...';
+      _statusMessage = 'Starting upload...';
     });
 
     try {
       final service = UploadService(context.read<DioClient>());
       final videoMime = lookupMimeType(_videoFile!.name) ?? 'video/mp4';
 
-      setState(() => _statusMessage = 'Uploading video...');
+      setState(() => _statusMessage = 'Requesting video upload URL...');
       final videoInfo = await service.getPresignedUrl(
         assetType: 'video', 
+        folder: _isSingleVideo ? null : _selectedFolder,
+        singleVideoOnly: _isSingleVideo,
         fileName: _videoFile!.name, 
         fileType: videoMime, 
         fileSize: _videoFile!.size,
@@ -138,6 +200,7 @@ class _UploadVideoScreenState extends State<UploadVideoScreen> {
 
       if (videoUrl == null || videoKey == null) throw Exception('Failed to get video upload URL');
 
+      setState(() => _statusMessage = 'Uploading video file...');
       await service.uploadBytes(url: videoUrl, bytes: _videoFile!.bytes!, contentType: videoMime, onProgress: (sent, total) {
         setState(() => _uploadProgress = sent / total * 0.7);
       });
@@ -146,10 +209,12 @@ class _UploadVideoScreenState extends State<UploadVideoScreen> {
       String? thumbMime;
 
       if (_thumbnailFile != null) {
-        setState(() => _statusMessage = 'Uploading thumbnail...');
+        setState(() => _statusMessage = 'Requesting thumbnail upload URL...');
         thumbMime = lookupMimeType(_thumbnailFile!.name) ?? 'image/jpeg';
         final thumbInfo = await service.getPresignedUrl(
           assetType: 'thumbnail', 
+          folder: _isSingleVideo ? null : _selectedFolder,
+          singleVideoOnly: _isSingleVideo,
           fileName: _thumbnailFile!.name, 
           fileType: thumbMime, 
           fileSize: _thumbnailFile!.size,
@@ -158,6 +223,7 @@ class _UploadVideoScreenState extends State<UploadVideoScreen> {
         final String? tKey = thumbInfo['r2ObjectKey'] ?? thumbInfo['objectKey'];
 
         if (tUrl != null && tKey != null) {
+          setState(() => _statusMessage = 'Uploading thumbnail...');
           await service.uploadBytes(url: tUrl, bytes: _thumbnailFile!.bytes!, contentType: thumbMime, onProgress: (sent, total) {
             setState(() => _uploadProgress = 0.7 + (sent / total * 0.2));
           });
@@ -165,9 +231,11 @@ class _UploadVideoScreenState extends State<UploadVideoScreen> {
         }
       }
 
-      setState(() => _statusMessage = 'Saving metadata...');
+      setState(() => _statusMessage = 'Submitting metadata...');
       await service.submitMetadata(
         fileName: _videoFile!.name,
+        folder: _isSingleVideo ? null : _selectedFolder,
+        singleVideoOnly: _isSingleVideo,
         fileSize: _videoFile!.size,
         fileType: videoMime,
         objectKey: videoKey,
@@ -189,7 +257,7 @@ class _UploadVideoScreenState extends State<UploadVideoScreen> {
       setState(() {
         _isUploading = false;
         _uploadProgress = 1.0;
-        _statusMessage = 'Video submitted for review';
+        _statusMessage = 'Video submitted successfully';
       });
 
       if (mounted) {
@@ -197,7 +265,7 @@ class _UploadVideoScreenState extends State<UploadVideoScreen> {
           context: context,
           builder: (context) => AlertDialog(
             title: const Text('Success'),
-            content: const Text('Your video has been submitted for admin review.'),
+            content: const Text('Video submitted for review.'),
             actions: [TextButton(onPressed: () { Navigator.pop(context); Navigator.pop(context); }, child: const Text('OK'))],
           ),
         );
@@ -230,9 +298,17 @@ class _UploadVideoScreenState extends State<UploadVideoScreen> {
               ListTile(
                 leading: const Icon(Icons.video_library, color: Colors.deepPurple),
                 title: Text(_videoFile?.name ?? 'Select Video (Required)'),
+                subtitle: _videoDurationSeconds != null 
+                    ? Text('Duration: $_videoDurationSeconds seconds', style: TextStyle(color: _isDurationValid ? Colors.green : Colors.red))
+                    : null,
                 trailing: ElevatedButton(onPressed: _isUploading ? null : _pickVideo, child: const Text('Pick')),
                 shape: RoundedRectangleBorder(side: BorderSide(color: Colors.grey.shade300), borderRadius: BorderRadius.circular(8)),
               ),
+              if (!_isDurationValid) 
+                Padding(
+                  padding: const EdgeInsets.only(top: 8, left: 16),
+                  child: Text(_durationError ?? '', style: const TextStyle(color: Colors.red, fontSize: 12)),
+                ),
               const SizedBox(height: 16),
               ListTile(
                 leading: const Icon(Icons.image, color: Colors.deepPurple),
@@ -241,17 +317,43 @@ class _UploadVideoScreenState extends State<UploadVideoScreen> {
                 shape: RoundedRectangleBorder(side: BorderSide(color: Colors.grey.shade300), borderRadius: BorderRadius.circular(8)),
               ),
               const SizedBox(height: 16),
-              TextFormField(
-                controller: _displayNameController,
-                decoration: const InputDecoration(labelText: 'Title', border: OutlineInputBorder()),
-                validator: (v) => (v == null || v.isEmpty) ? 'Title is required' : null,
+              SwitchListTile(
+                title: const Text('Single Video (Feed Only)'),
+                subtitle: const Text('Appears in the mixed feed'),
+                value: _isSingleVideo, 
+                onChanged: _isUploading ? null : (v) => setState(() {
+                   _isSingleVideo = v;
+                   _validateDuration();
+                }),
               ),
+              if (!_isSingleVideo) ...[
+                const SizedBox(height: 16),
+                DropdownButtonFormField<String>(
+                  value: _selectedFolder,
+                  decoration: const InputDecoration(labelText: 'Folder', border: OutlineInputBorder()),
+                  items: _folders.map((f) => DropdownMenuItem(value: f, child: Text(f))).toList(),
+                  onChanged: _isUploading ? null : (v) => setState(() => _selectedFolder = v),
+                ),
+              ],
               const SizedBox(height: 16),
-              TextFormField(
-                controller: _authorController,
-                decoration: const InputDecoration(labelText: 'Author', border: OutlineInputBorder()),
-                validator: (v) => (v == null || v.isEmpty) ? 'Author is required' : null,
-              ),
+              TextFormField(controller: _displayNameController, decoration: const InputDecoration(labelText: 'Title', border: OutlineInputBorder()), validator: (v) => v!.isEmpty ? 'Required' : null),
+              const SizedBox(height: 16),
+              TextFormField(controller: _authorController, decoration: const InputDecoration(labelText: 'Author', border: OutlineInputBorder()), validator: (v) => v!.isEmpty ? 'Required' : null),
+              const SizedBox(height: 16),
+              if (_categories.isNotEmpty)
+                DropdownButtonFormField<String>(
+                  value: _selectedCategory,
+                  decoration: const InputDecoration(labelText: 'Category', border: OutlineInputBorder()),
+                  items: _categories.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
+                  onChanged: _isUploading ? null : (v) => setState(() => _selectedCategory = v),
+                  validator: (v) => v == null ? 'Category is required' : null,
+                )
+              else
+                TextFormField(
+                  onChanged: (v) => _selectedCategory = v, 
+                  decoration: const InputDecoration(labelText: 'Category', border: OutlineInputBorder()),
+                  validator: (v) => (v == null || v.isEmpty) ? 'Category is required' : null,
+                ),
               const SizedBox(height: 16),
               TextFormField(
                 controller: _descriptionController,
@@ -259,22 +361,6 @@ class _UploadVideoScreenState extends State<UploadVideoScreen> {
                 maxLines: 3,
                 validator: (v) => (v == null || v.isEmpty) ? 'Description is required' : null,
               ),
-              const SizedBox(height: 16),
-              if (_categories.isNotEmpty)
-                DropdownButtonFormField<String>(
-                  value: _selectedCategory ?? _categories.first,
-                  decoration: const InputDecoration(labelText: 'Category', border: OutlineInputBorder()),
-                  items: _categories.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
-                  onChanged: _isUploading ? null : (v) => setState(() => _selectedCategory = v),
-                  validator: (v) => v == null || v.isEmpty ? 'Category is required' : null,
-                )
-              else
-                TextFormField(
-                  initialValue: _selectedCategory,
-                  onChanged: (v) => _selectedCategory = v,
-                  decoration: const InputDecoration(labelText: 'Category', border: OutlineInputBorder()),
-                  validator: (v) => (v == null || v.isEmpty) ? 'Category is required' : null,
-                ),
               const SizedBox(height: 16),
               TextFormField(
                 controller: _tagsController,
@@ -284,9 +370,9 @@ class _UploadVideoScreenState extends State<UploadVideoScreen> {
                   border: OutlineInputBorder()
                 ),
                 validator: (v) {
-                  if (v == null || v.isEmpty) return 'At least one tag is required';
+                  if (v == null || v.isEmpty) return 'At least one tag required';
                   final tags = v.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
-                  if (tags.isEmpty) return 'At least one tag is required';
+                  if (tags.isEmpty) return 'At least one tag required';
                   return null;
                 },
               ),
@@ -299,7 +385,7 @@ class _UploadVideoScreenState extends State<UploadVideoScreen> {
               ),
               const SizedBox(height: 24),
               ElevatedButton(
-                onPressed: _isUploading ? null : _startUpload,
+                onPressed: (_isUploading || !_isDurationValid) ? null : _startUpload,
                 style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16), backgroundColor: Colors.deepPurple, foregroundColor: Colors.white),
                 child: _isUploading ? const CircularProgressIndicator(color: Colors.white) : const Text('UPLOAD VIDEO', style: TextStyle(fontWeight: FontWeight.bold)),
               ),
@@ -310,4 +396,3 @@ class _UploadVideoScreenState extends State<UploadVideoScreen> {
     );
   }
 }
-
