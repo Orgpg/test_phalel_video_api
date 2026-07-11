@@ -7,6 +7,8 @@ class MobileUser {
   final String email;
   final String name;
   final String role;
+  final String? accountStatus;
+  final DateTime? emailVerifiedAt;
   final DateTime createdAt;
   final DateTime updatedAt;
   final UserPreference? preference;
@@ -18,6 +20,8 @@ class MobileUser {
     required this.email,
     required this.name,
     required this.role,
+    this.accountStatus,
+    this.emailVerifiedAt,
     required this.createdAt,
     required this.updatedAt,
     this.preference,
@@ -34,6 +38,10 @@ class MobileUser {
       email: userJson['email'] ?? '',
       name: userJson['name'] ?? userJson['username'] ?? '',
       role: userJson['role'] ?? 'STUDENT',
+      accountStatus: userJson['accountStatus'],
+      emailVerifiedAt: userJson['emailVerifiedAt'] != null 
+          ? DateTime.parse(userJson['emailVerifiedAt']) 
+          : null,
       createdAt: userJson['createdAt'] != null 
           ? DateTime.parse(userJson['createdAt']) 
           : DateTime.now(),
@@ -54,6 +62,8 @@ class MobileUser {
     String? name,
     UserPreference? preference,
     UserVerification? verification,
+    String? accountStatus,
+    DateTime? emailVerifiedAt,
   }) {
     return MobileUser(
       id: id,
@@ -61,6 +71,8 @@ class MobileUser {
       email: email,
       name: name ?? this.name,
       role: role,
+      accountStatus: accountStatus ?? this.accountStatus,
+      emailVerifiedAt: emailVerifiedAt ?? this.emailVerifiedAt,
       createdAt: createdAt,
       updatedAt: updatedAt,
       preference: preference ?? this.preference,

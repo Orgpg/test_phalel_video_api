@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 import '../../core/providers/auth_provider.dart';
 import '../home/home_screen.dart';
 import '../profile/profile_screen.dart';
+import 'email_verification_screen.dart';
+import 'forgot_password_confirm_screen.dart';
 import 'login_screen.dart';
 import 'onboarding_screen.dart';
 
@@ -43,6 +45,14 @@ class _AuthWrapperState extends State<AuthWrapper> {
 
         if (auth.state == AuthState.unauthenticated) {
           return const LoginScreen();
+        }
+
+        if (auth.state == AuthState.signupVerificationRequired) {
+          return const EmailVerificationScreen();
+        }
+
+        if (auth.state == AuthState.forgotPasswordCodeRequired) {
+          return const ForgotPasswordConfirmScreen();
         }
 
         if (auth.isAuthenticated) {

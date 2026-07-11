@@ -38,12 +38,15 @@ class _SignupScreenState extends State<SignupScreen> {
       );
 
       if (mounted) {
-        if (authProvider.errorMessage != null) {
+        if (authProvider.state == AuthState.error || authProvider.errorMessage != null) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(authProvider.errorMessage!)),
+            SnackBar(content: Text(authProvider.errorMessage ?? 'Signup failed')),
           );
-        } else if (authProvider.isAuthenticated) {
-          context.go('/auth'); // Let AuthWrapper handle logic
+        } else if (authProvider.state == AuthState.signupVerificationRequired) {
+          // AuthWrapper will handle navigation if we are on root, 
+          // but usually we might want to push if we are in a sub-route.
+          // For this app, root is AuthWrapper.
+          context.go('/auth');
         }
       }
     }
@@ -92,6 +95,7 @@ class _SignupScreenState extends State<SignupScreen> {
                   validator: (value) {
                     if (value == null || value.isEmpty) return 'Please enter a username';
                     if (value.length < 3) return 'Username too short';
+                    if (value.length > 40) return 'Username too long';
                     if (!RegExp(r'^[a-zA-Z0-9\._\-]+$').hasMatch(value)) {
                       return 'Only letters, numbers, dot, dash, underscore';
                     }

@@ -32,7 +32,9 @@ class _LoginScreenState extends State<LoginScreen> {
       );
 
       if (mounted) {
-        if (authProvider.state == AuthState.error || authProvider.errorMessage != null) {
+        if (authProvider.state == AuthState.signupVerificationRequired) {
+          context.go('/auth');
+        } else if (authProvider.state == AuthState.error || authProvider.errorMessage != null) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text(authProvider.errorMessage ?? 'Login failed')),
           );
@@ -110,7 +112,15 @@ class _LoginScreenState extends State<LoginScreen> {
                     return null;
                   },
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 8),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton(
+                    onPressed: () => context.push('/forgot-password'),
+                    child: const Text('Forgot Password?'),
+                  ),
+                ),
+                const SizedBox(height: 16),
                 Consumer<AuthProvider>(
                   builder: (context, auth, child) {
                     return ElevatedButton(

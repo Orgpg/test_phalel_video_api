@@ -8,11 +8,10 @@ class AuthService {
 
   AuthService(this._dioClient);
 
-  Future<AuthResponse> signup({
+  Future<Map<String, dynamic>> signup({
     required String username,
     required String email,
     required String password,
-    String? name,
   }) async {
     try {
       final response = await _dioClient.dio.post(
@@ -21,10 +20,39 @@ class AuthService {
           'username': username,
           'email': email,
           'password': password,
-          if (name != null) 'name': name,
+        },
+      );
+      return response.data;
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  Future<AuthResponse> verifyEmail({
+    required String email,
+    required String code,
+  }) async {
+    try {
+      final response = await _dioClient.dio.post(
+        '/api/mobile/auth/verify-email',
+        data: {
+          'email': email,
+          'code': code,
         },
       );
       return AuthResponse.fromJson(response.data);
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  Future<Map<String, dynamic>> resendVerificationCode(String email) async {
+    try {
+      final response = await _dioClient.dio.post(
+        '/api/mobile/auth/resend-verification-code',
+        data: {'email': email},
+      );
+      return response.data;
     } on DioException catch (e) {
       throw _handleError(e);
     }
@@ -40,6 +68,37 @@ class AuthService {
         data: {
           'email': email,
           'password': password,
+        },
+      );
+      return AuthResponse.fromJson(response.data);
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  Future<void> requestForgotPasswordCode(String email) async {
+    try {
+      await _dioClient.dio.post(
+        '/api/mobile/auth/forgot-password/request-code',
+        data: {'email': email},
+      );
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  Future<AuthResponse> confirmForgotPassword({
+    required String email,
+    required String code,
+    required String newPassword,
+  }) async {
+    try {
+      final response = await _dioClient.dio.post(
+        '/api/mobile/auth/forgot-password/confirm',
+        data: {
+          'email': email,
+          'code': code,
+          'newPassword': newPassword,
         },
       );
       return AuthResponse.fromJson(response.data);
@@ -76,6 +135,8 @@ class AuthService {
 
   String _handleError(DioException e) {
     if (e.response?.statusCode == 409) {
+      final message = e.response?.data?['error'] ?? e.response?.data?['message'];
+      if (message != null) return message;
       return 'Username or email already exists';
     }
     if (e.response?.data != null && e.response?.data['error'] != null) {

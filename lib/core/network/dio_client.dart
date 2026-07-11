@@ -34,7 +34,13 @@ class DioClient {
       },
       onError: (DioException e, handler) async {
         if (e.response?.statusCode == 401) {
-          // Auto-clear invalid token
+          // Requirement: If 401 with "Current password is incorrect", do not logout automatically.
+          final path = e.requestOptions.path;
+          if (path.contains('reset-password')) {
+            return handler.next(e);
+          }
+
+          // Auto-clear invalid token for other cases (expired session, etc)
           await _storage.delete(key: 'auth_token');
           if (onUnauthorized != null) {
             onUnauthorized();

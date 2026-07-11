@@ -23,6 +23,9 @@ import 'core/services/post_service.dart';
 import 'core/services/upload_service.dart';
 import 'features/auth/auth_wrapper.dart';
 import 'features/auth/login_screen.dart';
+import 'features/auth/email_verification_screen.dart';
+import 'features/auth/forgot_password_request_screen.dart';
+import 'features/auth/forgot_password_confirm_screen.dart';
 import 'features/auth/signup_screen.dart';
 import 'features/auth/onboarding_screen.dart';
 import 'features/bookings/my_bookings_screen.dart';
@@ -141,6 +144,18 @@ final GoRouter _router = GoRouter(
     GoRoute(
       path: '/signup',
       builder: (context, state) => const SignupScreen(),
+    ),
+    GoRoute(
+      path: '/verify-email',
+      builder: (context, state) => const EmailVerificationScreen(),
+    ),
+    GoRoute(
+      path: '/forgot-password',
+      builder: (context, state) => const ForgotPasswordRequestScreen(),
+    ),
+    GoRoute(
+      path: '/forgot-password-confirm',
+      builder: (context, state) => const ForgotPasswordConfirmScreen(),
     ),
     GoRoute(
       path: '/onboarding',

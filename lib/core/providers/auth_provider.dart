@@ -7,7 +7,15 @@ import '../services/auth_service.dart';
 import '../services/preference_service.dart';
 import '../services/verification_service.dart';
 
-enum AuthState { initial, loading, authenticated, unauthenticated, error }
+enum AuthState { 
+  initial, 
+  loading, 
+  authenticated, 
+  unauthenticated, 
+  signupVerificationRequired,
+  forgotPasswordCodeRequired,
+  error 
+}
 
 class AuthProvider extends ChangeNotifier {
   final AuthService _authService;
@@ -18,6 +26,10 @@ class AuthProvider extends ChangeNotifier {
   MobileUser? _user;
   AuthState _state = AuthState.initial;
   String? _errorMessage;
+  
+  // For verification flow
+  String? _verificationEmail;
+  DateTime? _verificationExpiresAt;
 
   AuthProvider(
     this._authService,
@@ -28,6 +40,8 @@ class AuthProvider extends ChangeNotifier {
   MobileUser? get user => _user;
   AuthState get state => _state;
   String? get errorMessage => _errorMessage;
+  String? get verificationEmail => _verificationEmail;
+  DateTime? get verificationExpiresAt => _verificationExpiresAt;
 
   bool get isAuthenticated => _state == AuthState.authenticated;
 
@@ -77,12 +91,17 @@ class AuthProvider extends ChangeNotifier {
     try {
       final response = await _authService.login(email: email, password: password);
       await _storage.write(key: 'auth_token', value: response.token);
-      // Requirement: After login success, call GET /api/mobile/users/me
       await refreshUser();
       _state = AuthState.authenticated;
     } catch (e) {
-      _state = AuthState.unauthenticated;
-      _errorMessage = e.toString();
+      final error = e.toString();
+      if (error.contains('Email verification is required')) {
+        _verificationEmail = email;
+        _state = AuthState.signupVerificationRequired;
+      } else {
+        _state = AuthState.unauthenticated;
+        _errorMessage = error;
+      }
     }
     notifyListeners();
   }
@@ -97,14 +116,93 @@ class AuthProvider extends ChangeNotifier {
         username: username,
         email: email,
         password: password,
-        name: name,
+      );
+      
+      _verificationEmail = response['email'] ?? email;
+      if (response['expiresAt'] != null) {
+        _verificationExpiresAt = DateTime.parse(response['expiresAt']);
+      }
+      
+      _state = AuthState.signupVerificationRequired;
+    } catch (e) {
+      _state = AuthState.unauthenticated;
+      _errorMessage = e.toString();
+    }
+    notifyListeners();
+  }
+
+  Future<void> verifyEmail(String code) async {
+    if (_verificationEmail == null) return;
+    
+    _state = AuthState.loading;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final response = await _authService.verifyEmail(
+        email: _verificationEmail!,
+        code: code,
       );
       await _storage.write(key: 'auth_token', value: response.token);
-      // Requirement: After signup success, call GET /api/mobile/users/me
       await refreshUser();
       _state = AuthState.authenticated;
     } catch (e) {
+      _state = AuthState.signupVerificationRequired;
+      _errorMessage = e.toString();
+    }
+    notifyListeners();
+  }
+
+  Future<void> resendVerificationCode() async {
+    if (_verificationEmail == null) return;
+    
+    try {
+      final response = await _authService.resendVerificationCode(_verificationEmail!);
+      if (response['expiresAt'] != null) {
+        _verificationExpiresAt = DateTime.parse(response['expiresAt']);
+      }
+      notifyListeners();
+    } catch (e) {
+      _errorMessage = e.toString();
+      notifyListeners();
+      rethrow;
+    }
+  }
+
+  Future<void> requestForgotPasswordCode(String email) async {
+    _state = AuthState.loading;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      await _authService.requestForgotPasswordCode(email);
+      _verificationEmail = email;
+      _state = AuthState.forgotPasswordCodeRequired;
+    } catch (e) {
       _state = AuthState.unauthenticated;
+      _errorMessage = e.toString();
+    }
+    notifyListeners();
+  }
+
+  Future<void> confirmForgotPassword(String code, String newPassword) async {
+    if (_verificationEmail == null) return;
+    
+    _state = AuthState.loading;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final response = await _authService.confirmForgotPassword(
+        email: _verificationEmail!,
+        code: code,
+        newPassword: newPassword,
+      );
+      await _storage.write(key: 'auth_token', value: response.token);
+      await refreshUser();
+      _state = AuthState.authenticated;
+    } catch (e) {
+      _state = AuthState.forgotPasswordCodeRequired;
       _errorMessage = e.toString();
     }
     notifyListeners();
@@ -114,13 +212,14 @@ class AuthProvider extends ChangeNotifier {
     await _storage.delete(key: 'auth_token');
     _user = null;
     _state = AuthState.unauthenticated;
+    _verificationEmail = null;
+    _verificationExpiresAt = null;
     notifyListeners();
   }
 
   Future<void> savePreference(UserPreference preference) async {
     try {
-      final updatedPref = await _preferenceService.savePreference(preference);
-      // Refresh user to get the latest data structure from server
+      await _preferenceService.savePreference(preference);
       await refreshUser();
     } catch (e) {
       rethrow;
