@@ -49,7 +49,7 @@ class FeedService {
         '/api/mobile/videos/$videoId/related',
         queryParameters: {'limit': limit},
       );
-      final List items = response.data['items'] ?? [];
+      final List items = response.data['related'] ?? response.data['items'] ?? [];
       return items.map((e) => FeedItem.fromJson(e)).toList();
     } on DioException catch (e) {
       throw _handleError(e);

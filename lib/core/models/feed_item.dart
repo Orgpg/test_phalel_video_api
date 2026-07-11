@@ -100,21 +100,28 @@ class FeedThumbnail {
 class FeedAuthor {
   final String id;
   final String name;
+  final String? username;
   final String? avatarUrl;
 
   FeedAuthor({
     required this.id,
     required this.name,
+    this.username,
     this.avatarUrl,
   });
 
   factory FeedAuthor.fromJson(Map<String, dynamic> json) {
+    // Handle both direct fields and nested user object
+    final userData = json['user'] ?? json;
     return FeedAuthor(
-      id: json['id'] ?? '',
-      name: json['name'] ?? 'Unknown',
-      avatarUrl: json['avatarUrl'],
+      id: userData['id'] ?? '',
+      name: userData['name'] ?? 'Unknown',
+      username: userData['username'],
+      avatarUrl: userData['avatarUrl'],
     );
   }
+
+  String get displayName => username ?? name;
 }
 
 class FeedStats {

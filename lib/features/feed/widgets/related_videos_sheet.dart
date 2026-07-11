@@ -85,9 +85,13 @@ class RelatedVideosSheet extends StatelessWidget {
                           const SizedBox(height: 4),
                           Text(
                             video.title ?? '',
-                            maxLines: 2,
+                            maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w500),
+                          ),
+                          Text(
+                            '${video.stats.views} views',
+                            style: const TextStyle(color: Colors.white70, fontSize: 9),
                           ),
                         ],
                       ),

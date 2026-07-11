@@ -102,8 +102,14 @@ class _CommentBottomSheetState extends State<CommentBottomSheet> {
                       }
                       final comment = _comments[index];
                       return ListTile(
-                        leading: CircleAvatar(child: Text(comment.author.name[0])),
-                        title: Text(comment.author.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                        leading: CircleAvatar(
+                          backgroundImage: comment.author.avatarUrl != null ? NetworkImage(comment.author.avatarUrl!) : null,
+                          child: comment.author.avatarUrl == null ? Text(comment.author.displayName[0]) : null,
+                        ),
+                        title: Text(
+                          comment.author.displayName,
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                        ),
                         subtitle: Text(comment.body),
                       );
                     },

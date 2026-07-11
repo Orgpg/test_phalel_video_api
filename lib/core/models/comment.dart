@@ -17,7 +17,7 @@ class Comment {
     return Comment(
       id: json['id'] ?? '',
       body: json['body'] ?? '',
-      author: FeedAuthor.fromJson(json['author'] ?? {}),
+      author: FeedAuthor.fromJson(json), // Pass entire json to let FeedAuthor find 'user' or 'author'
       createdAt: json['createdAt'] != null ? DateTime.parse(json['createdAt']) : DateTime.now(),
     );
   }
