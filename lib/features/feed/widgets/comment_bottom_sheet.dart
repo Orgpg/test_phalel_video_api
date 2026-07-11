@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../../core/models/comment.dart';
 import '../../../core/services/social_service.dart';
 import '../../../core/providers/feed_provider.dart';
+import '../../../core/providers/auth_provider.dart';
 
 class CommentBottomSheet extends StatefulWidget {
   final String videoId;
@@ -73,8 +74,49 @@ class _CommentBottomSheetState extends State<CommentBottomSheet> {
     }
   }
 
+  Future<void> _deleteComment(Comment comment) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Comment'),
+        content: const Text('Delete this comment?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    final socialService = context.read<SocialService>();
+    try {
+      await socialService.deleteComment(widget.videoId, comment.id);
+      setState(() {
+        _comments.removeWhere((c) => c.id == comment.id);
+      });
+      if (mounted) {
+        context.read<FeedProvider>().updateItemStats(widget.videoId, comments: _comments.length);
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Comment deleted')));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to delete comment: $e')));
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final currentUserId = context.read<AuthProvider>().user?.id;
+
     return Container(
       height: MediaQuery.of(context).size.height * 0.7,
       decoration: const BoxDecoration(
@@ -101,6 +143,8 @@ class _CommentBottomSheetState extends State<CommentBottomSheet> {
                         return const Center(child: Padding(padding: EdgeInsets.all(16), child: CircularProgressIndicator()));
                       }
                       final comment = _comments[index];
+                      final isOwner = comment.userId == currentUserId;
+
                       return ListTile(
                         leading: CircleAvatar(
                           backgroundImage: comment.author.avatarUrl != null ? NetworkImage(comment.author.avatarUrl!) : null,
@@ -111,6 +155,12 @@ class _CommentBottomSheetState extends State<CommentBottomSheet> {
                           style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
                         ),
                         subtitle: Text(comment.body),
+                        trailing: isOwner 
+                          ? IconButton(
+                              icon: const Icon(Icons.delete_outline, color: Colors.grey, size: 20),
+                              onPressed: () => _deleteComment(comment),
+                            )
+                          : null,
                       );
                     },
                   ),

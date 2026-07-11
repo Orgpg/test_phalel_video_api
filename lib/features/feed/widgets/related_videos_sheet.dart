@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:go_router/go_router.dart';
 import '../../../core/models/feed_item.dart';
 import '../../../core/providers/feed_provider.dart';
-import 'video_feed_item.dart'; // သို့မဟုတ် video_feed_tile
+import '../../../widgets/video_thumbnail_widget.dart';
+import 'video_feed_item.dart';
 
 class RelatedVideosSheet extends StatelessWidget {
   final String videoId;
@@ -55,16 +55,15 @@ class RelatedVideosSheet extends StatelessWidget {
                   gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: 3,
                     crossAxisSpacing: 10,
-                    mainAxisSpacing: 10,
-                    childAspectRatio: 9 / 14,
+                    mainAxisSpacing: 20,
+                    childAspectRatio: 9 / 20, // Adjusted for 9:16 + text
                   ),
                   itemCount: videos.length,
                   itemBuilder: (context, index) {
                     final video = videos[index];
                     return GestureDetector(
                       onTap: () {
-                        Navigator.pop(context); // Sheet ကို ပိတ်မယ်
-                        // ရွေးချယ်လိုက်တဲ့ video ကို play ဖို့အတွက် logic
+                        Navigator.pop(context); // Close sheet
                         _playRelatedVideo(context, video);
                       },
                       child: Column(
@@ -72,26 +71,31 @@ class RelatedVideosSheet extends StatelessWidget {
                         children: [
                           Expanded(
                             child: ClipRRect(
-                              borderRadius: BorderRadius.circular(12),
-                              child: Stack(
-                                fit: StackFit.expand,
-                                children: [
-                                  _buildThumbnail(video),
-                                  const Center(child: Icon(Icons.play_circle_outline, color: Colors.white70, size: 30)),
-                                ],
+                              borderRadius: BorderRadius.circular(8),
+                              child: VideoThumbnailWidget(
+                                video: video,
+                                aspectRatio: 9 / 16,
                               ),
                             ),
                           ),
-                          const SizedBox(height: 4),
+                          const SizedBox(height: 6),
                           Text(
-                            video.title ?? '',
-                            maxLines: 1,
+                            video.title ?? 'Untitled',
+                            maxLines: 2,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w500),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
+                          const SizedBox(height: 2),
                           Text(
                             '${video.stats.views} views',
-                            style: const TextStyle(color: Colors.white70, fontSize: 9),
+                            style: const TextStyle(
+                              color: Colors.white38,
+                              fontSize: 9,
+                            ),
                           ),
                         ],
                       ),
@@ -106,29 +110,39 @@ class RelatedVideosSheet extends StatelessWidget {
     );
   }
 
-  Widget _buildThumbnail(FeedItem video) {
-    final thumb = video.thumbnail;
-    if (thumb?.url != null) {
-      return Image.network(thumb!.url!, fit: BoxFit.cover);
-    }
-    return Container(
-      color: Colors.grey[900],
-      child: const Icon(Icons.movie_filter_outlined, color: Colors.white24),
-    );
+  String _formatDate(DateTime date) {
+    final now = DateTime.now();
+    final diff = now.difference(date);
+    if (diff.inDays > 365) return '${(diff.inDays / 365).floor()}y ago';
+    if (diff.inDays > 30) return '${(diff.inDays / 30).floor()}mo ago';
+    if (diff.inDays > 0) return '${diff.inDays}d ago';
+    if (diff.inHours > 0) return '${diff.inHours}h ago';
+    return 'Just now';
   }
 
   void _playRelatedVideo(BuildContext context, FeedItem video) {
-    // Related video ကို screen အသစ်မှာ vertical feed အဖြစ် ထပ်ပြပေးမယ်
-    // သို့မဟုတ် လက်ရှိ feed မှာ jump to လုပ်လို့ရအောင် provider မှာ logic ထည့်နိုင်ပါတယ်
-    // လက်ရှိမှာတော့ full player အနေနဲ့ပြပေးလိုက်ပါမယ်
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.black,
-      builder: (context) => Scaffold(
-        backgroundColor: Colors.black,
-        appBar: AppBar(backgroundColor: Colors.transparent, foregroundColor: Colors.white),
-        body: VideoFeedItem(item: video), // Re-using video feed item component
+    // Navigate to a new screen that plays this video in full-screen (feed style)
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => Scaffold(
+          backgroundColor: Colors.black,
+          body: Stack(
+            children: [
+              VideoFeedItem(item: video),
+              Positioned(
+                top: MediaQuery.of(context).padding.top + 10,
+                left: 10,
+                child: CircleAvatar(
+                  backgroundColor: Colors.black26,
+                  child: IconButton(
+                    icon: const Icon(Icons.arrow_back, color: Colors.white),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

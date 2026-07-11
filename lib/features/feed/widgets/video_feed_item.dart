@@ -191,34 +191,40 @@ class _VideoFeedItemState extends State<VideoFeedItem> {
         if (_isInitialized)
           GestureDetector(
             onTap: () {
-              if (_controller.value.isPlaying) {
-                _controller.pause();
-              } else {
-                _controller.play();
-              }
-              setState(() {});
+              setState(() {
+                if (_controller.value.isPlaying) {
+                  _controller.pause();
+                } else {
+                  _controller.play();
+                }
+              });
             },
-            child: FittedBox(
-              fit: BoxFit.cover,
-              child: SizedBox(
-                width: _controller.value.size.width,
-                height: _controller.value.size.height,
-                child: VideoPlayer(_controller),
-              ),
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                FittedBox(
+                  fit: BoxFit.cover,
+                  child: SizedBox(
+                    width: _controller.value.size.width,
+                    height: _controller.value.size.height,
+                    child: VideoPlayer(_controller),
+                  ),
+                ),
+                // Play/Pause Icon Overlay
+                if (!_controller.value.isPlaying)
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.24),
+                      shape: BoxShape.circle,
+                    ),
+                    padding: const EdgeInsets.all(16),
+                    child: const Icon(Icons.play_arrow, size: 60, color: Colors.white70),
+                  ),
+              ],
             ),
           ),
         
-        // Pause Overlay
-        if (_isInitialized && !_controller.value.isPlaying)
-          Center(
-            child: GestureDetector(
-              onTap: () {
-                _controller.play();
-                setState(() {});
-              },
-              child: const Icon(Icons.play_arrow, size: 80, color: Colors.white54),
-            ),
-          ),
+        // Removed old pause overlay as it's now integrated
 
         // Right side actions
         Positioned(
@@ -367,11 +373,21 @@ class _VideoFeedItemState extends State<VideoFeedItem> {
   }
 
   void _showRelated(BuildContext context) {
+    if (_controller.value.isPlaying) {
+      _controller.pause();
+      setState(() {});
+    }
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) => RelatedVideosSheet(videoId: widget.item.id),
-    );
+    ).then((_) {
+      // Optional: Resume on close
+      // if (mounted) {
+      //   _controller.play();
+      //   setState(() {});
+      // }
+    });
   }
 }

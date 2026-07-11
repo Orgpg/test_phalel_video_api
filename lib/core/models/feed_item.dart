@@ -79,12 +79,18 @@ class FeedThumbnail {
   final String? url;
   final int frameSecond;
   final String? fallbackVideoUrl;
+  final String? aspectRatio;
+  final int? width;
+  final int? height;
 
   FeedThumbnail({
     required this.source,
     this.url,
     required this.frameSecond,
     this.fallbackVideoUrl,
+    this.aspectRatio,
+    this.width,
+    this.height,
   });
 
   factory FeedThumbnail.fromJson(Map<String, dynamic> json) {
@@ -93,6 +99,9 @@ class FeedThumbnail {
       url: json['url'],
       frameSecond: json['frameSecond'] ?? 1,
       fallbackVideoUrl: json['fallbackVideoUrl'],
+      aspectRatio: json['aspectRatio'],
+      width: json['width'],
+      height: json['height'],
     );
   }
 }
