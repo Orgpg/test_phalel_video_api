@@ -33,7 +33,6 @@ class VideoService {
                   'thumbnailUrl': json['thumbnail']?['url'],
                   'author': json['author']?['name'],
                   'folder': json['folder'],
-                  // Mapping other fields if possible
                 }))
             .toList();
       }
@@ -57,5 +56,39 @@ class VideoService {
       debugPrint('Error fetching folders: $e');
       return [];
     }
+  }
+
+  Future<Map<String, dynamic>> saveVideo(String videoId) async {
+    try {
+      final response = await _dioClient.dio.post('/api/mobile/videos/$videoId/save');
+      return response.data;
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  Future<Map<String, dynamic>> unsaveVideo(String videoId) async {
+    try {
+      final response = await _dioClient.dio.delete('/api/mobile/videos/$videoId/save');
+      return response.data;
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  Future<Map<String, dynamic>> rateVideo(String videoId, int rating) async {
+    try {
+      final response = await _dioClient.dio.post(
+        '/api/mobile/videos/$videoId/rate',
+        data: {'rating': rating},
+      );
+      return response.data;
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  String _handleError(DioException e) {
+    return e.response?.data?['error'] ?? e.message ?? 'Unknown error';
   }
 }

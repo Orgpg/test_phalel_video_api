@@ -21,6 +21,9 @@ import 'core/services/feed_service.dart';
 import 'core/services/social_service.dart';
 import 'core/services/post_service.dart';
 import 'core/services/upload_service.dart';
+import 'core/services/user_service.dart';
+import 'core/providers/user_provider.dart';
+import 'core/providers/post_provider.dart';
 import 'features/auth/auth_wrapper.dart';
 import 'features/auth/login_screen.dart';
 import 'features/auth/email_verification_screen.dart';
@@ -39,6 +42,9 @@ import 'features/mentors/mentor_list_screen.dart';
 import 'features/mentors/mentor_detail_screen.dart';
 import 'features/mentors/mentor_management_screen.dart';
 import 'features/profile/profile_screen.dart';
+import 'features/profile/edit_profile_screen.dart';
+import 'features/profile/public_profile_screen.dart';
+import 'features/search/user_search_screen.dart';
 import 'features/upload/upload_video_screen.dart';
 import 'features/video_player/video_player_screen.dart';
 import 'features/wallet/wallet_screen.dart';
@@ -73,6 +79,7 @@ Future<void> main() async {
   final socialService = SocialService(dioClient);
   final postService = PostService(dioClient);
   final uploadService = UploadService(dioClient);
+  final userService = UserService(dioClient);
 
   runApp(
     MultiProvider(
@@ -82,6 +89,8 @@ Future<void> main() async {
         Provider.value(value: postService),
         Provider.value(value: uploadService),
         Provider.value(value: socialService),
+        Provider.value(value: userService),
+        Provider.value(value: videoService),
         ChangeNotifierProvider(
           create: (_) => AuthProvider(
             authService,
@@ -103,6 +112,12 @@ Future<void> main() async {
         ),
         ChangeNotifierProvider(
           create: (_) => FeedProvider(feedService, socialService),
+        ),
+        ChangeNotifierProvider(
+          create: (_) => UserProvider(userService),
+        ),
+        ChangeNotifierProvider(
+          create: (_) => PostProvider(postService),
         ),
       ],
       child: const MyApp(),
@@ -166,6 +181,17 @@ final GoRouter _router = GoRouter(
       builder: (context, state) => const ProfileScreen(),
     ),
     GoRoute(
+      path: '/public-profile',
+      builder: (context, state) {
+        final id = state.extra as String;
+        return PublicProfileScreen(userId: id);
+      },
+    ),
+    GoRoute(
+      path: '/edit-profile',
+      builder: (context, state) => const EditProfileScreen(),
+    ),
+    GoRoute(
       path: '/player',
       builder: (context, state) {
         final video = state.extra as VideoModel;
@@ -182,6 +208,10 @@ final GoRouter _router = GoRouter(
         final folderName = state.extra as String;
         return FolderVideosScreen(folderName: folderName);
       },
+    ),
+    GoRoute(
+      path: '/search-users',
+      builder: (context, state) => const UserSearchScreen(),
     ),
     GoRoute(
       path: '/wallet',

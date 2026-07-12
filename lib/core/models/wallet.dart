@@ -82,3 +82,51 @@ class CoinTransaction {
     }
   }
 }
+
+enum TopupStatus { PENDING, APPROVED, REJECTED }
+
+class TopupRequest {
+  final String id;
+  final String userId;
+  final int requestedCoins;
+  final int mmkAmount;
+  final String? screenshotUrl;
+  final TopupStatus status;
+  final String? adminNote;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+
+  TopupRequest({
+    required this.id,
+    required this.userId,
+    required this.requestedCoins,
+    required this.mmkAmount,
+    this.screenshotUrl,
+    required this.status,
+    this.adminNote,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+
+  factory TopupRequest.fromJson(Map<String, dynamic> json) {
+    return TopupRequest(
+      id: json['id'] ?? '',
+      userId: json['userId'] ?? '',
+      requestedCoins: json['requestedCoins'] ?? 0,
+      mmkAmount: json['mmkAmount'] ?? 0,
+      screenshotUrl: json['screenshotUrl'],
+      status: _parseStatus(json['status']),
+      adminNote: json['adminNote'] ?? json['moderationNote'],
+      createdAt: json['createdAt'] != null ? DateTime.parse(json['createdAt']) : DateTime.now(),
+      updatedAt: json['updatedAt'] != null ? DateTime.parse(json['updatedAt']) : DateTime.now(),
+    );
+  }
+
+  static TopupStatus _parseStatus(String? status) {
+    switch (status) {
+      case 'APPROVED': return TopupStatus.APPROVED;
+      case 'REJECTED': return TopupStatus.REJECTED;
+      default: return TopupStatus.PENDING;
+    }
+  }
+}

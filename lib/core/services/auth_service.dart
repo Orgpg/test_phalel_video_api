@@ -133,6 +133,14 @@ class AuthService {
     }
   }
 
+  Future<void> deleteAccount() async {
+    try {
+      await _dioClient.dio.delete('/api/mobile/auth/account');
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
   String _handleError(DioException e) {
     if (e.response?.statusCode == 409) {
       final message = e.response?.data?['error'] ?? e.response?.data?['message'];

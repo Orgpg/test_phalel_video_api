@@ -217,6 +217,15 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> deleteAccount() async {
+    try {
+      await _authService.deleteAccount();
+      await logout();
+    } catch (e) {
+      rethrow;
+    }
+  }
+
   Future<void> savePreference(UserPreference preference) async {
     try {
       await _preferenceService.savePreference(preference);

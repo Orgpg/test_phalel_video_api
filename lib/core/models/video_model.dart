@@ -1,4 +1,5 @@
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:test_phalel_video_api/core/models/feed_item.dart';
 
 class VideoModel {
   final String id;
@@ -83,5 +84,25 @@ class VideoModel {
     final baseUrl = dotenv.get('BASE_URL', fallback: '').replaceAll(RegExp(r'/$'), '');
     final encodedKey = Uri.encodeComponent(thumbnailObjectKey!);
     return "$baseUrl/api/mobile/uploads/proxy?key=$encodedKey";
+  }
+
+  static VideoModel fromFeedItem(FeedItem item) {
+    return VideoModel(
+      id: item.id,
+      fileName: '',
+      displayName: item.title ?? 'No Name',
+      author: item.author.name,
+      description: item.description,
+      folder: null,
+      category: null,
+      tags: [],
+      accessType: 'FREE',
+      fileSize: 0,
+      fileType: 'video/mp4',
+      r2ObjectKey: '',
+      createdAt: item.createdAt ?? DateTime.now(),
+      videoUrlOverride: item.videoUrl,
+      thumbnailUrlOverride: item.thumbnail?.url,
+    );
   }
 }

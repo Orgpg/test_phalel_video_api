@@ -164,7 +164,50 @@ class FeedProvider with ChangeNotifier {
     }
   }
 
+  Future<void> toggleSaveVideo(String videoId, {Function(String)? onUnsave}) async {
+    final index = _items.indexWhere((item) => item.id == videoId);
+    if (index == -1) return;
+
+    final item = _items[index];
+    final isSaved = item.viewerState.saved;
+
+    _items[index] = item.copyWith(
+      viewerState: ViewerState(
+        liked: item.viewerState.liked,
+        saved: !isSaved,
+        followedAuthor: item.viewerState.followedAuthor,
+        friendStatus: item.viewerState.friendStatus,
+      ),
+    );
+    notifyListeners();
+
+    try {
+      if (isSaved) {
+        await _feedService.unsaveVideo(videoId); // Need to add these to FeedService or VideoService
+        if (onUnsave != null) onUnsave(videoId);
+      } else {
+        await _feedService.saveVideo(videoId);
+      }
+    } catch (e) {
+      _items[index] = item;
+      notifyListeners();
+    }
+  }
+
+  Future<void> rateVideo(String videoId, int rating) async {
+    try {
+      await _feedService.rateVideo(videoId, rating);
+    } catch (e) {
+      rethrow;
+    }
+  }
+
   Future<List<FeedItem>> getRelatedVideos(String videoId) async {
-    return await _feedService.getRelatedVideos(videoId);
+    try {
+      return await _feedService.getRelatedVideos(videoId);
+    } catch (e) {
+      debugPrint('Error fetching related videos: $e');
+      return [];
+    }
   }
 }

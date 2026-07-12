@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:mime/mime.dart';
@@ -121,7 +122,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                 children: [
                   ClipRRect(
                     borderRadius: BorderRadius.circular(12),
-                    child: Image.file(File(_image!.path), height: 200, width: double.infinity, fit: BoxFit.cover),
+                    child: _buildImagePreview(),
                   ),
                   Positioned(
                     right: 8,
@@ -158,6 +159,14 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
         ),
       ),
     );
+  }
+
+  Widget _buildImagePreview() {
+    if (kIsWeb) {
+      return Image.network(_image!.path, height: 200, width: double.infinity, fit: BoxFit.cover);
+    } else {
+      return Image.file(File(_image!.path), height: 200, width: double.infinity, fit: BoxFit.cover);
+    }
   }
 }
 

@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../../../core/models/feed_item.dart';
 import '../../../core/providers/feed_provider.dart';
+import '../../../core/providers/user_provider.dart';
 import 'comment_bottom_sheet.dart';
 import 'related_videos_sheet.dart';
 
@@ -249,6 +250,19 @@ class _VideoFeedItemState extends State<VideoFeedItem> {
                 onTap: () => _showRelated(context),
               ),
               _buildAction(
+                icon: widget.item.viewerState.saved ? Icons.bookmark : Icons.bookmark_border,
+                label: 'Save',
+                color: widget.item.viewerState.saved ? Colors.amber : Colors.white,
+                onTap: () => context.read<FeedProvider>().toggleSaveVideo(widget.item.id, onUnsave: (id) {
+                   context.read<UserProvider>().removeSavedItem(id);
+                }),
+              ),
+              _buildAction(
+                icon: Icons.star_border,
+                label: 'Rate',
+                onTap: () => _showRateDialog(context),
+              ),
+              _buildAction(
                 icon: Icons.remove_red_eye_outlined,
                 label: '${widget.item.stats.views}',
                 onTap: () {},
@@ -389,5 +403,41 @@ class _VideoFeedItemState extends State<VideoFeedItem> {
       //   setState(() {});
       // }
     });
+  }
+
+  void _showRateDialog(BuildContext context) {
+    int rating = 0;
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Rate this Video'),
+          content: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: List.generate(5, (index) => IconButton(
+              icon: Icon(index < rating ? Icons.star : Icons.star_border, color: Colors.amber, size: 32),
+              onPressed: () => setDialogState(() => rating = index + 1),
+            )),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+            ElevatedButton(
+              onPressed: rating == 0 ? null : () async {
+                try {
+                  await context.read<FeedProvider>().rateVideo(widget.item.id, rating);
+                  if (mounted) {
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Rating submitted'), backgroundColor: Colors.green));
+                  }
+                } catch (e) {
+                  if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+                }
+              },
+              child: const Text('Submit'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

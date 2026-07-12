@@ -71,6 +71,33 @@ class FeedService {
     }
   }
 
+  Future<void> saveVideo(String videoId) async {
+    try {
+      await _dioClient.dio.post('/api/mobile/videos/$videoId/save');
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  Future<void> unsaveVideo(String videoId) async {
+    try {
+      await _dioClient.dio.delete('/api/mobile/videos/$videoId/save');
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  Future<void> rateVideo(String videoId, int rating) async {
+    try {
+      await _dioClient.dio.post(
+        '/api/mobile/videos/$videoId/rate',
+        data: {'rating': rating},
+      );
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
   String _handleError(DioException e) {
     return e.response?.data?['error'] ?? e.message ?? 'Unknown error';
   }

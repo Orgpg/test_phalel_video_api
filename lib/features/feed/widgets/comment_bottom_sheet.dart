@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../core/models/comment.dart';
 import '../../../core/services/social_service.dart';
+import '../../../core/services/post_service.dart';
 import '../../../core/providers/feed_provider.dart';
 import '../../../core/providers/auth_provider.dart';
 
 class CommentBottomSheet extends StatefulWidget {
-  final String videoId;
-  const CommentBottomSheet({super.key, required this.videoId});
+  final String videoId; // Also used for postId
+  final bool isPost;
+  const CommentBottomSheet({super.key, required this.videoId, this.isPost = false});
 
   @override
   State<CommentBottomSheet> createState() => _CommentBottomSheetState();
@@ -33,9 +35,14 @@ class _CommentBottomSheetState extends State<CommentBottomSheet> {
     }
     if (!_hasMore && !refresh) return;
 
-    final socialService = context.read<SocialService>();
     try {
-      final response = await socialService.getComments(widget.videoId, cursor: _nextCursor);
+      CommentResponse response;
+      if (widget.isPost) {
+        response = await context.read<PostService>().getPostComments(widget.videoId, cursor: _nextCursor);
+      } else {
+        response = await context.read<SocialService>().getComments(widget.videoId, cursor: _nextCursor);
+      }
+
       setState(() {
         if (refresh) {
           _comments = response.comments;
@@ -54,17 +61,22 @@ class _CommentBottomSheetState extends State<CommentBottomSheet> {
   Future<void> _submitComment() async {
     if (_commentController.text.trim().isEmpty) return;
 
-    final socialService = context.read<SocialService>();
     final body = _commentController.text.trim();
     _commentController.clear();
 
     try {
-      final newComment = await socialService.createComment(widget.videoId, body);
+      Comment newComment;
+      if (widget.isPost) {
+        newComment = await context.read<PostService>().createPostComment(widget.videoId, body);
+      } else {
+        newComment = await context.read<SocialService>().createComment(widget.videoId, body);
+      }
+
       setState(() {
         _comments.insert(0, newComment);
       });
-      // Update feed stats
-      if (mounted) {
+      // Update feed stats if on video
+      if (!widget.isPost && mounted) {
         context.read<FeedProvider>().updateItemStats(widget.videoId, comments: _comments.length);
       }
     } catch (e) {
@@ -81,30 +93,26 @@ class _CommentBottomSheetState extends State<CommentBottomSheet> {
         title: const Text('Delete Comment'),
         content: const Text('Delete this comment?'),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('Delete'),
-          ),
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(context, true), style: TextButton.styleFrom(foregroundColor: Colors.red), child: const Text('Delete')),
         ],
       ),
     );
 
     if (confirmed != true) return;
 
-    final socialService = context.read<SocialService>();
     try {
-      await socialService.deleteComment(widget.videoId, comment.id);
+      if (widget.isPost) {
+        await context.read<PostService>().deletePostComment(widget.videoId, comment.id);
+      } else {
+        await context.read<SocialService>().deleteComment(widget.videoId, comment.id);
+      }
+      
       setState(() {
         _comments.removeWhere((c) => c.id == comment.id);
       });
-      if (mounted) {
+      if (!widget.isPost && mounted) {
         context.read<FeedProvider>().updateItemStats(widget.videoId, comments: _comments.length);
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Comment deleted')));
       }
     } catch (e) {
       if (mounted) {
@@ -119,16 +127,10 @@ class _CommentBottomSheetState extends State<CommentBottomSheet> {
 
     return Container(
       height: MediaQuery.of(context).size.height * 0.7,
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
+      decoration: const BoxDecoration(color: Colors.white, borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
       child: Column(
         children: [
-          Container(
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            child: const Text('Comments', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-          ),
+          Container(padding: const EdgeInsets.symmetric(vertical: 16), child: const Text('Comments', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16))),
           const Divider(height: 1),
           Expanded(
             child: _isLoading 
@@ -150,16 +152,10 @@ class _CommentBottomSheetState extends State<CommentBottomSheet> {
                           backgroundImage: comment.author.avatarUrl != null ? NetworkImage(comment.author.avatarUrl!) : null,
                           child: comment.author.avatarUrl == null ? Text(comment.author.displayName[0]) : null,
                         ),
-                        title: Text(
-                          comment.author.displayName,
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                        ),
+                        title: Text(comment.author.displayName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                         subtitle: Text(comment.body),
                         trailing: isOwner 
-                          ? IconButton(
-                              icon: const Icon(Icons.delete_outline, color: Colors.grey, size: 20),
-                              onPressed: () => _deleteComment(comment),
-                            )
+                          ? IconButton(icon: const Icon(Icons.delete_outline, color: Colors.grey, size: 20), onPressed: () => _deleteComment(comment))
                           : null,
                       );
                     },
@@ -167,27 +163,11 @@ class _CommentBottomSheetState extends State<CommentBottomSheet> {
           ),
           const Divider(height: 1),
           Padding(
-            padding: EdgeInsets.only(
-              bottom: MediaQuery.of(context).viewInsets.bottom + 8,
-              left: 16,
-              right: 8,
-              top: 8,
-            ),
+            padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom + 8, left: 16, right: 8, top: 8),
             child: Row(
               children: [
-                Expanded(
-                  child: TextField(
-                    controller: _commentController,
-                    decoration: const InputDecoration(
-                      hintText: 'Add a comment...',
-                      border: InputBorder.none,
-                    ),
-                  ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.send, color: Colors.blue),
-                  onPressed: _submitComment,
-                ),
+                Expanded(child: TextField(controller: _commentController, decoration: const InputDecoration(hintText: 'Add a comment...', border: InputBorder.none))),
+                IconButton(icon: const Icon(Icons.send, color: Colors.blue), onPressed: _submitComment),
               ],
             ),
           ),
